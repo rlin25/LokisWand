@@ -1,193 +1,208 @@
 # LokisWand — Glossary v1
 
-Terms are organized by domain cluster. This glossary covers domain concepts, system-specific terms, and third-party tools used in LokisWand. It is intended as a reference for both implementation and interview preparation.
+This glossary serves two audiences: recruiters (technical and non-technical) reading the repository, and the developer returning to the codebase after time away.
+
+**Part 1** covers domain terms and high-level system concepts. Read this if you have already read the README and want to understand the vocabulary before diving deeper.
+
+**Part 2** covers the architecture and execution model. Read this if you want to understand how the components connect and what each processing step produces.
+
+**Part 3** is an implementation reference, organized by source file. Read this if you are reading specific source files and need terminology explained.
 
 ---
 
-## 1. Project Identity
+## Part 1 — Domain and System Overview
 
-**LokisWand**
-The name of this project. Named following the Norse mythology convention established by Huginn. Loki is the Norse trickster god of cunning and transformation; the wand is the instrument of that cunning. Thematically appropriate for a tool that reads situations and reveals hidden signals.
-
-**Interface contract**
-The document specifying every input, output, data flow, prompt directive, schema, and failure behavior in LokisWand before implementation begins. Stored as `loki_v1_interface_contract.md`. The authoritative reference for Claude Code during implementation.
-
-**Design decisions document**
-The locked record of every architectural and behavioral choice made during the design phase of LokisWand. Stored as `loki_v1_design_decisions.md`. Claude Code must not deviate from any locked decision during implementation.
-
-**Masterplan**
-The implementation roadmap for LokisWand, organized into eight phases with acceptance criteria at each gate. Stored as `loki_v1_masterplan.md`.
+*Readable without technical background. Assumes you have read the README.*
 
 ---
-
-## 2. User Interaction and Input
 
 **Job description**
-The full text of a job listing, pasted by the user into the n8n form trigger. The primary input to the core pipeline. URL fetching is explicitly not used — the user performs Ctrl+A, copy, and paste from the listing page. See: Decision 1.
+The full text of a job listing, copied from a job board and pasted into the n8n form by the user. This is the only recurring user input to the system — no URL, no browser extension, no structured form beyond the text field. The user submits one job description per application they are evaluating.
 
-**Form trigger**
-The n8n node that initiates the core pipeline. Generates a hosted form URL with a single long text field for pasting the job description. The user's only recurring interaction point with the system.
+**Job application**
+A single candidate submission for a specific open role at a specific company. LokisWand processes one job application per form submission and stores the result as a single record in the Airtable tracker.
+
+**Application status**
+The current state of a job application in the Airtable tracker. Updated manually by the candidate. Options: Researching, Applied, Following Up, Interviewing, Offer, Rejected, Skipped. Only applications in "Applied" status receive follow-up nudges.
+
+**Kanban board**
+The Airtable view where all job applications are displayed as cards organized by status column. The candidate moves cards between columns as applications progress. No custom UI is required — Airtable's native kanban view handles this.
 
 **Master resume**
-The source document used to generate the candidate profile. A comprehensive markdown or .docx file containing all resume information across all roles and versions. Not passed directly to the LLM — converted to a structured profile document first. See: Decision 5.
+The candidate's comprehensive source document containing all resume content. Not passed directly to any Claude assessment — converted once into the candidate profile document first.
 
-**Conversion prompt**
-The one-time Claude prompt used to generate the candidate profile document from the master resume. Stored in `profile/loki_conversion_prompt.md`. Instructs Claude to follow the profile document schema exactly and place all inferred fields in the Review Required section.
+**Candidate profile**
+A structured markdown document derived from the master resume. Contains the candidate's identity, skills, experience (with separate achievement and technical detail fields), education, highlights with relevance tags, hard constraints, goals, and known gaps. Generated once, verified by the candidate, and used as context for every assessment. The quality of this document directly determines the quality of every downstream assessment.
 
----
+**Fit assessment**
+The output of Instance A: a numbered list identifying the strongest signals that the candidate is a good match for a specific role. Based on evidence from the candidate profile matched against the job description.
 
-## 3. Candidate Profile Document
-
-**Profile document**
-The structured markdown file used as the primary LLM input for all candidate fit assessments. Generated once from the master resume via the conversion prompt, reviewed by the user, and uploaded to n8n as a static reference. Contains identity, skills, experience with technical details, education, highlights with relevance tags, and goals and known gaps. See: Decision 5, Decision 6.
-
-**Review Required**
-The first section of the candidate profile document. Contains all fields that Claude inferred during document generation and that require user verification before the profile is used. Always includes hard constraints, goals, and known gaps regardless of Claude's confidence level. Structured separation — rather than color coding or emoji flags — makes inferred fields visually scannable.
-
-**Technical details field**
-A field within each experience entry in the candidate profile document. Lists the actual technologies, tools, methods, and frameworks used in that role — distinct from the achievement-focused bullet points. Provides Instance A and Instance B with concrete technical evidence for fit and risk signal identification. See: Decision 8.
-
-**Goals and known gaps**
-A section of the candidate profile document capturing target role type, preferred company stage, location constraints, salary floor, known skill gaps actively being closed, and hard constraints. Always placed in the Review Required section regardless of Claude's confidence level. Used by Instance B to distinguish between gaps that are in-progress and gaps that are entirely unaddressed.
-
-**Known gaps**
-A subsection of the Goals and known gaps section of the profile document. Lists skill gaps the candidate is actively working to close. Used by Instance B to distinguish between gaps that are in-progress and gaps that are entirely unaddressed, producing more accurate risk assessments.
-
-**Hard constraints**
-Fields within the Goals and known gaps section of the profile document representing non-negotiable requirements — location, salary floor, and other deal-breakers. Always placed in the Review Required section for user verification. Used by Instance B to flag genuine disqualifying mismatches.
-
-**Profile version**
-A field in the profile document header and in every Airtable record. Tracks which version of the candidate profile was used to produce a given assessment. Allows the user to identify stale assessments after a profile update. Format: `v1.0`, `v1.1`, etc. See: Decision 15.
-
-**Static file reference**
-The mechanism by which the candidate profile document is made available to n8n workflows. The profile document is uploaded once to n8n and referenced by both Instance A and Instance B nodes as a fixed input. Must be manually re-uploaded if the profile document is updated.
-
----
-
-## 4. Assessment Pipeline
-
-**Core pipeline**
-The primary n8n workflow in LokisWand. Triggered by form submission, it runs metadata extraction, duplicate detection, dual assessment, synthesis, Airtable write, and Slack confirmation in sequence. Stored as `workflows/loki_core_pipeline.json`.
-
-**Metadata extraction**
-Step 1 of the core pipeline. A Claude API call that extracts company name, role title, location, and employment type from the pasted job description text. Returns null for any field that cannot be determined. See: Decision 14.
-
-**Duplicate detection**
-The pre-write check performed before creating a new Airtable record. n8n queries for an existing record matching the same company name and role title. If a match is found, the pipeline halts and sends a Slack notification rather than creating a duplicate record. See: Decision 13.
-
-**Parallel assessment**
-The step in the core pipeline where Instance A and Instance B are called simultaneously rather than sequentially. Reduces total pipeline execution time by running both Claude API calls at the same time.
-
-**Complementary framing**
-The design pattern used to differentiate Instance A and Instance B. Rather than adversarial personas (optimist vs. skeptic), the two instances are given complementary tasks — fit signals and risk signals respectively — that produce genuine variance without manufacturing conflict. See: Decision 2.
-
-**Instance A**
-The first of two parallel Claude API calls in the core pipeline. Prompted to identify the strongest fit signals between the candidate profile and the job description. May defer to synthesis if no genuine fit signals exist. See: Decision 2, Decision 3.
-
-**Instance B**
-The second of two parallel Claude API calls in the core pipeline. Prompted to identify the strongest risk signals between the candidate profile and the job description. Explicitly distinguishes between in-progress gaps and unaddressed gaps. May defer to synthesis if no genuine risk signals exist. See: Decision 2, Decision 3.
-
-**Fit signals**
-The output of Instance A. A numbered list of the strongest indicators that the candidate is a good match for the role, drawn from the candidate profile and compared against the job description. Stored in the Fit signals field of the Airtable record.
-
-**Risk signals**
-The output of Instance B. A numbered list of the strongest indicators that the candidate may not be a good match for the role, drawn from gaps between the candidate profile and the job description. Distinguishes between in-progress gaps and unaddressed gaps. Stored in the Risk signals field of the Airtable record.
-
-**Deferral**
-The behavior of Instance A or Instance B when no genuine signals exist to report. Rather than manufacturing signals to meet a count, the instance returns a statement deferring to the synthesis agent with a brief explanation. The synthesis prompt treats a deferral as meaningful evidence — a deferral from Instance B signals strong fit; a deferral from Instance A signals weak fit. See: Decision 3.
-
-**Assessment**
-The output of a single Claude instance evaluation of a candidate's profile against a job description. LokisWand produces two assessments per submission — one fit assessment from Instance A and one risk assessment from Instance B — before passing both to the synthesis call.
-
-**Synthesis**
-The third Claude API call in the core pipeline. Receives the outputs of Instance A and Instance B and produces a unified recommendation. Resolves genuine conflicts between assessments, collapses false conflicts into confident statements, incorporates deferrals as meaningful evidence, and concludes with a fixed enum recommendation and one paragraph justification. See: Decision 4.
+**Risk assessment**
+The output of Instance B: a numbered list identifying gaps or mismatches between the candidate's profile and the role requirements. Each signal distinguishes whether the gap is something the candidate is actively closing (in-progress) or has not addressed (unaddressed).
 
 **Recommendation**
-The final output of the synthesis call. A fixed enum value: Strong Fit, Moderate Fit, Weak Fit, or Do Not Apply. Stored as a single select field in Airtable and included in the Slack confirmation message on pipeline completion.
+The final output of the synthesis call. A single value from a fixed set of four: **Strong Fit**, **Moderate Fit**, **Weak Fit**, **Do Not Apply**. This is actionable — it is a direct answer to the question "should I apply to this role?"
 
-**Strong Fit**
-One of four possible synthesis recommendation values. Indicates the synthesis agent has determined the candidate is a strong match for the role with minimal meaningful gaps.
+**Follow-up**
+The action of contacting a company after submitting an application to check on its status. LokisWand sends a Slack reminder at 7 days and 14 days after the application status is changed to Applied, so no follow-up deadline is missed.
 
-**Moderate Fit**
-One of four possible synthesis recommendation values. Indicates the candidate has meaningful fit with the role but notable gaps or risks exist.
-
-**Weak Fit**
-One of four possible synthesis recommendation values. Indicates the candidate has some relevant experience but significant gaps exist that make the role a poor match.
-
-**Do Not Apply**
-One of four possible synthesis recommendation values. Indicates the synthesis agent has determined the candidate should not apply to this role. The strongest negative recommendation.
+**Follow-up nudge**
+A Slack message sent to the candidate when an application is overdue for follow-up. Contains the company name, role title, date applied, and which follow-up interval (day 7 or day 14) is due.
 
 ---
 
-## 5. Follow-up and Notifications
+## Part 2 — Architecture and Execution
 
-**Follow-up nudge workflow**
-The secondary n8n workflow in LokisWand. Runs on a daily schedule at 9:00 AM user local time. Queries Airtable for Applied records where day 7 or day 14 follow-up nudges are due and have not yet been sent. Posts Slack reminders and updates Airtable checkboxes. Stored as `workflows/loki_followup_nudge.json`.
-
-**Nudge**
-A Slack message sent by the follow-up nudge workflow reminding the user to follow up on a job application. Sent at day 7 and day 14 after the application status is set to Applied.
-
-**Range query**
-The follow-up nudge workflow's approach to querying Airtable for eligible records. Queries for records where date submitted is 7 or more days ago (capped at 21 days) rather than exactly 7 days ago. Prevents permanent nudge loss if the workflow fails to run on the exact target day. See: Decision 12.
-
-**Schedule trigger**
-The n8n node that initiates the follow-up nudge workflow. Configured to run once daily at 9:00 AM user local time.
-
-**Follow-up sent day 7**
-An Airtable checkbox field. Set to true after the day 7 follow-up nudge has been sent for a given record. Prevents duplicate nudges on subsequent workflow runs.
-
-**Follow-up sent day 14**
-An Airtable checkbox field. Set to true after the day 14 follow-up nudge has been sent for a given record. Prevents duplicate nudges on subsequent workflow runs.
+*For readers who have read the README and want to understand how the system works before examining source files.*
 
 ---
 
-## 6. Data Storage and Visualization
+**Three-call LLM orchestration**
+The core architectural pattern: each job submission triggers exactly three Claude API calls. Call 1 extracts metadata from the job description. Calls 2a and 2b run in parallel — one identifies fit signals, the other identifies risk signals. Call 3 reconciles the two assessments and produces the final recommendation. Each call has a single, constrained task. No call attempts to evaluate both fit and risk.
 
-**Airtable**
-A cloud-based database and spreadsheet hybrid used as the persistent data store for LokisWand. Chosen for its native kanban view, date field filtering, and n8n integration. All job application records are written to and read from Airtable.
+**Complementary framing**
+The design pattern that differentiates the two parallel assessment calls. Instance A is assigned fit signals; Instance B is assigned risk signals. The two instances are complementary — each has a distinct task — rather than adversarial (optimist vs. skeptic). Adversarial framing produces manufactured disagreement; complementary framing produces genuine variance that synthesis can reason about. See Decision 2.
 
-**Airtable base**
-The top-level container in Airtable, analogous to a database. LokisWand uses a single base named LokisWand containing one table: Applications.
+**Parallel assessment**
+Instance A and Instance B execute simultaneously rather than sequentially. Both receive the same inputs (candidate profile + job description) at the same time. Neither sees the other's output. This reduces total pipeline execution time and ensures each assessment is independent.
 
-**Airtable kanban view**
-A visual board view in Airtable that groups records by a single select field — in LokisWand, the Status field. Provides the pipeline visualization surface without requiring custom UI development.
+**Deferral**
+The designed behavior of Instance A or Instance B when no genuine signals exist in their assigned category. Instead of manufacturing signals to meet a count, the instance returns a specific deferral statement. The synthesis call treats a deferral from Instance B as evidence of strong fit (no meaningful risks found) and a deferral from Instance A as evidence of weak fit (no meaningful fit evidence found). Deferral is a meaningful output, not an error. See Decision 3.
 
-**Status**
-An Airtable single select field tracking the current state of a job application. Options: Researching, Applied, Following Up, Interviewing, Offer, Rejected, Skipped. Updated manually by the user. Records in Applied status are eligible for follow-up nudge evaluation.
+**Metadata extraction**
+Step 1 of the core pipeline: a Claude API call that extracts company name, role title, location, and employment type from the raw job description text. Uses Claude rather than regex because job description formatting varies significantly across companies and job boards. Returns explicit null for fields it cannot determine, enabling clean failure handling. See Decision 14.
 
-**Applied**
-An application status value indicating the user has submitted an application for this role. Records in Applied status are eligible for follow-up nudge evaluation by the nudge workflow.
+**Duplicate detection**
+A guard that runs before assessment begins. Queries Airtable for an existing record matching the same company name and role title. If a match exists, the pipeline halts with a Slack notification — no duplicate record is created and no API calls are made for assessment. See Decision 13.
 
-**Single select field**
-An Airtable field type storing one value from a predefined list of options. Used in LokisWand for Recommendation and Status.
+**Synthesis**
+The third Claude call. Receives both assessment outputs and does four things in order: (1) resolves genuine conflicts between the two assessments, (2) collapses apparent conflicts that are not genuine into confident statements, (3) incorporates any deferral evidence from either instance, (4) concludes with a fixed enum recommendation and one-paragraph justification. Synthesis is analytical work, not summarization. See Decision 4.
 
-**Checkbox field**
-An Airtable field type storing a boolean value. Used in LokisWand for Follow-up sent day 7 and Follow-up sent day 14 — set to true after each nudge is sent to prevent duplicate notifications.
+**Conflict resolution**
+The first analytical step in synthesis: identifying points where the fit assessment and risk assessment appear to directly contradict each other, then resolving each conflict with explicit reasoning. Unresolved conflicts produce hedged synthesis output, which is not acceptable — a hedged output is not a recommendation.
 
-**Employment type**
-A metadata field extracted from the job description by Claude in Step 1 of the core pipeline. Values include full-time, part-time, and contract. Written to the Airtable record.
+**Signal collapse**
+The second analytical step in synthesis: identifying apparent conflicts that are not genuine — cases where both agents are observing the same thing from different angles — and collapsing each into a single confident statement. For example, if Instance A notes a strong ML background and Instance B notes that the role requires ML experience the candidate may not have, this is likely the same observation from two angles, not a genuine conflict.
+
+**Recommendation enum**
+The fixed set of four values that the synthesis call must conclude with: Strong Fit, Moderate Fit, Weak Fit, Do Not Apply. The recommendation must be exactly one of these — no qualifications appended, no variations. The fixed enum forces a concrete, actionable output. Stored as a single select field in Airtable.
+
+**Pre-write guard pattern**
+The structural pattern of running duplicate detection before the three Claude API calls. Cheap operations that can reject a submission run first; expensive operations (API calls) only run if the cheap guards pass.
+
+**Structured LLM input**
+The architectural principle underlying the candidate profile design: rather than passing raw resume text to assessment instances, a one-time conversion step produces a structured document with explicit fields for skills, achievements, technical details, and relevance tags. This eliminates input format variance across submissions and gives assessment instances concrete evidence rather than requiring them to infer from unstructured text.
+
+**Range query with idempotent checkbox**
+The two-part pattern used by the follow-up nudge workflow to achieve exactly-once nudge delivery. The range query (7 or more days ago, capped at 21) catches missed workflow execution days. The checkbox (set to true after each nudge sent) prevents the range query from sending duplicates on subsequent runs. Together they handle workflow failure gracefully. See Decision 12.
+
+**Profile version**
+The version identifier in the candidate profile header (e.g., v1.0). Logged in every Airtable record at assessment time. Makes assessments auditable — if the profile is updated, older records can be identified by their profile version as potentially reflecting outdated information. See Decision 15.
+
+**Review Required**
+The first section of the candidate profile document. Contains all fields inferred by Claude during profile generation — specifically hard constraints, goals, and known gaps — that require candidate verification before the profile is used. Always appears first, regardless of how confident Claude is in its inferences. See Decision 5.
+
+**Known gaps**
+A subsection of the Review Required section in the candidate profile. Lists skill gaps the candidate is actively working to close. Instance B uses this to distinguish between in-progress gaps and unaddressed gaps when identifying risk signals.
+
+**Technical details field**
+A field in each experience entry in the candidate profile, separate from achievement bullets. Lists the actual technologies, tools, methods, and frameworks used in that role. Provides Instance A and Instance B with concrete stack evidence rather than requiring inference from achievement language. See Decision 8.
+
+**Highlight tags**
+Explicit tags on each highlight in the Highlights and Accolades section of the candidate profile, indicating which role types, skills, or competencies the highlight is most relevant to. Eliminate the need for Instance A to infer relevance from descriptions on every assessment call. See Decision 9.
 
 ---
 
-## 7. Infrastructure and Tooling
+## Part 3 — Implementation Reference
 
-**n8n**
-An open-source workflow automation tool used to build and run both the core pipeline and the follow-up nudge workflow. Chosen for its native Claude API integration, Airtable integration, Slack integration, form trigger capability, and scheduled workflow support.
+*For developers reading specific source files. Organized by source file.*
 
-**n8n cloud**
-The hosted version of n8n used by LokisWand. Required for reliable follow-up nudge scheduling — self-hosted instances may have uptime constraints that cause missed nudge windows.
+---
 
-**Node**
-The basic unit of an n8n workflow. Each node performs a single action — triggering, transforming data, calling an API, writing to a database, or sending a message. The core pipeline is composed of nodes connected in sequence with parallel branches for dual assessment.
+### `workflows/loki_core_pipeline.json`
 
-**Workflow**
-An n8n automation composed of connected nodes. LokisWand contains two workflows: the core pipeline and the follow-up nudge workflow.
+**Load Profile Document**
+n8n Code node that provides the candidate profile text to downstream nodes. In v1, the profile is embedded as a hardcoded string in this node's JavaScript rather than fetched from an external file. This is a departure from the interface contract's specification of a "static file reference" — driven by n8n file handling complexity discovered during implementation. A v2 remediation item: the profile should be externalized to an n8n variable or properly configured file reference.
 
-**HTTP request node**
-The n8n node type used to make Claude API calls within the core pipeline. Used for metadata extraction, Instance A, Instance B, and synthesis calls.
+**Process Duplicate Check**
+n8n Code node that translates the Airtable search result into an explicit `duplicateFound` boolean. Required because the Airtable search node returns an empty array when no match is found — a raw empty array is ambiguous in n8n's IF node logic, while an explicit boolean is not.
 
-**Claude API**
-The Anthropic API used to make programmatic calls to Claude models within n8n workflows. LokisWand makes three Claude API calls per job submission: Instance A, Instance B, and synthesis.
+**Merge node (typeVersion 3.2)**
+n8n node that joins the parallel Instance A and Instance B branches before synthesis. TypeVersion 3.2 was required specifically — earlier typeVersions had different behavior for combining parallel branch outputs that was not compatible with this workflow's execution order.
 
-**Slack**
-The messaging platform used for follow-up nudges and pipeline notifications in LokisWand. A personal Slack workspace with a dedicated job-search channel receives all system messages. Chosen over email for signal-to-noise ratio and relevance to Alloy's internal tooling context. See: Decision 11.
+**Parse Synthesis Output**
+n8n Code node that uses regex to extract the four labeled sections and recommendation enum value from the synthesis call's text response. The section label patterns are tightly coupled to the synthesis prompt's output format. Any rename of a section in the synthesis prompt must be updated in this node atomically.
+
+**Metadata Valid? / Assessment Error? / Synthesis Error? / Airtable Write Failed?**
+Four IF nodes, each gating a specific failure condition. Each routes to a distinct Slack error notification node for its failure mode. All four are required — omitting any one means a specific failure type goes unnoticed.
+
+**Slack nodes** (Metadata Error, Duplicate Detected, Assessment Error, Synthesis Error, Write Failed, Pipeline Complete)
+Six HTTP Request nodes posting to the Slack webhook. Each has a distinct message body for its context. All reference `$vars.SLACK_WEBHOOK_URL` — an n8n variable that must be configured in Settings → Variables before the workflow will function.
+
+---
+
+### `workflows/loki_followup_nudge.json`
+
+**Daily Schedule**
+Schedule trigger node set to 9:00 AM daily. Fires both the day 7 and day 14 query branches in parallel from a single trigger.
+
+**Prepare Day 7 Message / Prepare Day 14 Message**
+Code nodes that loop over Airtable query results and construct formatted Slack message bodies for each record. Adds a `slackBody` field to each item. Required because the Slack message requires JavaScript string interpolation of multiple fields — cleaner in a Code node than in n8n expression syntax in the HTTP Request body.
+
+**Update Day 7 Checkbox / Update Day 14 Checkbox**
+HTTP Request PATCH nodes that call the Airtable REST API directly to set the checkbox field to true. These use the HTTP Request node rather than the native n8n Airtable node because of an n8n Airtable v2 bug: the native node's batchUpdate operation treats "id" in "Columns to match on: id" as a user-created column name rather than the internal Airtable record ID, producing a 422 INVALID_RECORDS error. Direct HTTP PATCH with the proper `{ records: [{ id: <record_id>, fields: { ... } }] }` payload bypasses this bug.
+
+**Cross-node reference** (`$('Prepare Day X Message').item.json.id`)
+Used in the Update nodes to retrieve the original Airtable record ID. After the Slack HTTP Request executes, `$json` contains the Slack API response — no longer the Airtable record. The cross-node reference reaches back to the Code node's output to get the record ID. This reference and the node ordering are tightly coupled.
+
+**`$vars.SLACK_WEBHOOK_URL`**
+n8n environment variable referenced in all Slack-sending HTTP Request nodes in both workflows. Must be set in n8n Settings → Variables before importing either workflow. Keeps the webhook URL out of the committed workflow JSON files.
+
+---
+
+### `profile/loki_candidate_profile.md`
+
+**Version field** (`v1.0`)
+The version identifier in the profile header. Read by the Load Profile Document code node in the core pipeline and written to the Profile version field of every Airtable record.
+
+**Hard constraints** (in Review Required)
+Non-negotiable requirements: location constraints, salary floor, and other deal-breakers. Always placed in Review Required regardless of inference confidence. Directly affects which roles Instance B flags as disqualifying mismatches.
+
+---
+
+### `profile/loki_conversion_prompt.md`
+
+**Schema block**
+The full profile document schema reproduced inline in the conversion prompt (in addition to its definition in the interface contract). Present in the prompt because Claude generates more schema-compliant output when the schema is visible in the current conversation context. Both the conversion prompt schema block and the interface contract schema definition must be updated atomically when the schema changes.
+
+**[PASTE MASTER RESUME HERE]**
+The literal placeholder at the end of the conversion prompt. The user replaces this with their resume text before running the prompt in a Claude conversation.
+
+---
+
+### `prompts/project/loki_instance_a_prompt.md` and `loki_instance_b_prompt.md`
+
+**Deferral statement**
+The exact text an assessment instance returns when no genuine signals exist. Frozen — the synthesis prompt was written to recognize this specific format. Any paraphrase or reformatting of the deferral statement breaks the synthesis agent's Step 3 interpretation.
+
+**[CANDIDATE PROFILE INSERTED HERE BY n8n]** / **[JOB DESCRIPTION INSERTED HERE BY n8n]**
+Literal placeholder markers in the prompt files. Replaced at runtime by n8n expression interpolation in the HTTP Request node body before the API call is made.
+
+**In-progress gap** (Instance B only)
+Label applied to a risk signal when the candidate's profile marks the gap as something they are actively closing. Informs the synthesis agent that this risk is bounded, not open-ended.
+
+**Unaddressed gap** (Instance B only)
+Label applied to a risk signal when the gap is not acknowledged or being actively closed in the profile. Carries stronger negative weight in synthesis interpretation than an in-progress gap.
+
+---
+
+### `prompts/project/loki_synthesis_prompt.md`
+
+**Four labeled sections**
+The required output structure: Conflict Resolution, Collapsed Signals, Deferral Handling, Recommendation. These exact labels are the regex targets in the Parse Synthesis Output code node. Cannot be renamed without updating the parse node atomically.
+
+**Justification**
+The one-paragraph explanation that follows the recommendation enum in the synthesis output. Must be specific to the candidate and the role — the synthesis prompt explicitly prohibits generic statements. Stored in the Synthesis field of the Airtable record.
+
+**[INSTANCE A OUTPUT INSERTED HERE BY n8n]** / **[INSTANCE B OUTPUT INSERTED HERE BY n8n]**
+Placeholder markers replaced at runtime by n8n expression interpolation in the Run Synthesis HTTP Request node body.

@@ -1,4 +1,6 @@
-# LokisWand — Interface Contract v1
+# INTERFACE_CONTRACT.md — LokisWand Interface Contract v1
+
+This document specifies every component boundary in LokisWand: what each component accepts as input, what it returns as output, what data types are involved, and how it behaves on failure. It was written before any workflow node was built, and the implementation was built against it — not the other way around. Use it as the authoritative reference for understanding what the system does: if the workflow and this document disagree, the document is right and the workflow needs to be corrected. Readers evaluating the system design should start here; readers evaluating architectural choices should follow the links to [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
 
 ---
 
@@ -15,6 +17,8 @@ No other user input is required at any point in the system.
 
 ## Section 1 — Profile Document Conversion Workflow
 
+*Governing decisions: Decision 5, Decision 6, Decision 7, Decision 8, Decision 9*
+
 ### Purpose
 Convert a candidate's master resume into a structured profile document for use as a controlled LLM input throughout the core pipeline.
 
@@ -29,8 +33,6 @@ Convert a candidate's master resume into a structured profile document for use a
 3. All inferred fields that require verification are surfaced in the Review Required section at the top of the document
 4. User reviews the Review Required section, corrects any inaccuracies, and saves the document as a markdown file
 5. The saved profile document is uploaded to n8n as a static reference file
-
-[Updated post-implementation: Step 5 was not implemented as specified. In v1, the profile document text is embedded as a hardcoded string in a Code node (Load Profile Document) in the core pipeline workflow. The n8n static file reference approach was set aside due to configuration complexity discovered during implementation. The v2 remediation is to externalize the profile. See Decision 17.]
 
 ### Output
 | Field | Format | Destination |
@@ -103,6 +105,8 @@ Verify before first use.*
 
 ## Section 2 — Core Pipeline
 
+*Governing decisions: Decision 1, Decision 2, Decision 3, Decision 4, Decision 10, Decision 11, Decision 12, Decision 13, Decision 14, Decision 15*
+
 ### Purpose
 Accept a pasted job description, evaluate candidate fit using dual Claude assessments and a synthesis call, log all results to Airtable, and trigger follow-up nudges via Slack at defined intervals.
 
@@ -112,6 +116,9 @@ Accept a pasted job description, evaluate candidate fit using dual Claude assess
 | Job description text | Plain text | n8n hosted form, user paste |
 
 ### Step 1 — Metadata Extraction
+
+*Governing decisions: Decision 1, Decision 14*
+
 The pasted job description text is passed to Claude to extract structured metadata before assessment begins.
 
 **Input:**
@@ -134,11 +141,12 @@ Extract the following fields from the job description. If a field cannot be dete
 
 **Failure behavior:** If extraction produces null for both company and role title, log error to Airtable, notify user via Slack, halt pipeline.
 
-[Updated post-implementation: The "log error to Airtable" component of this failure behavior was not implemented. At the metadata extraction stage, no Airtable record exists yet — the pipeline has not progressed far enough to have a record to write to. The implementation sends a Slack notification and halts. The interface contract's specified Airtable logging for this failure case is not achievable without creating a partial error record, which was not specified. Recorded as a known gap; v2 should either remove this requirement from the contract or specify a partial error record format.]
-
 ---
 
 ### Step 2 — Dual Assessment
+
+*Governing decisions: Decision 2, Decision 3*
+
 Two Claude instances receive identical context but differentiated prompts. Calls are made in parallel.
 
 **Shared context passed to both instances:**
@@ -164,6 +172,9 @@ If fewer than three genuine risk signals exist, return only the signals that are
 ---
 
 ### Step 3 — Synthesis
+
+*Governing decisions: Decision 3, Decision 4*
+
 A third Claude instance receives both assessments and produces a unified output.
 
 **Input:**
@@ -193,6 +204,9 @@ Fourth, conclude with a clear recommendation using exactly one of the following:
 ---
 
 ### Step 4 — Log to Airtable
+
+*Governing decisions: Decision 10, Decision 15*
+
 All pipeline outputs are written to a single Airtable record on pipeline completion.
 
 **Airtable schema:**
@@ -220,6 +234,9 @@ All pipeline outputs are written to a single Airtable record on pipeline complet
 ---
 
 ### Step 5 — Follow-up Nudge Workflow
+
+*Governing decisions: Decision 11, Decision 12*
+
 A separate n8n workflow runs on a daily schedule and checks Airtable for records meeting nudge criteria.
 
 **Trigger:** Daily schedule — runs once per day at 9:00 AM user local time
@@ -229,8 +246,6 @@ A separate n8n workflow runs on a daily schedule and checks Airtable for records
 - AND one of the following:
   - Date submitted is 7 or more days ago (and less than 21 days ago) AND Follow-up sent day 7 is false
   - Date submitted is 14 or more days ago (and less than 21 days ago) AND Follow-up sent day 14 is false
-
-[Updated post-implementation: The original contract incorrectly stated "exactly 7 days ago" / "exactly 14 days ago." Decision 12 (locked before implementation) specifies range queries. The implementation follows Decision 12. This was a contradiction in the original design documents — the contract text was wrong, not the decision. Corrected to match the locked decision and the actual implementation.]
 
 **Slack message format:**
 ```
@@ -248,6 +263,7 @@ Day [7 or 14] follow-up due — have you heard back?
 ---
 
 ### Failure Handling
+
 | Failure point | Behavior |
 |---|---|
 | Metadata extraction returns null for company and role title | Log error to Airtable, Slack notification to user, halt |

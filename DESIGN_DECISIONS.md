@@ -1,8 +1,10 @@
-# LokisWand — Design Decisions v1
+# DESIGN_DECISIONS.md — LokisWand Design Decisions v1
 
-**Status:** Implementation complete. Decisions 1–15 were locked before implementation. Decisions 16–19 were recorded post-implementation as part of the Phase 7 feedback loop. Next phase: v2 design.
+Every decision in this document was made before implementation began, using the Socratic method: Claude posed structured questions about each design area, presented two options with a preference and rationale for each, and challenged weak reasoning. No decision was locked until the reasoning was explicit and all alternatives were evaluated and documented with rejection rationale. This document is not a record of what was built — it is a record of what was decided and why. The rejected alternatives are as important as the chosen ones: they show that the decisions were deliberate, not accidental. For the inputs and outputs that each decision governs, see [INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md).
 
-All decisions in this document are locked. Claude Code must not re-litigate any decision marked LOCKED during implementation. If a implementation constraint makes a locked decision unachievable, surface the conflict explicitly and halt rather than substituting an alternative silently.
+---
+
+All decisions in this document are locked. Claude Code must not re-litigate any decision marked LOCKED during implementation. If an implementation constraint makes a locked decision unachievable, surface the conflict explicitly and halt rather than substituting an alternative silently.
 
 ---
 
@@ -199,60 +201,6 @@ All decisions in this document are locked. Claude Code must not re-litigate any 
 
 ## Known Constraints
 - Three Claude API calls per submission — costs and rate limits apply at high volume; acceptable for personal use at v1 scale
-- Profile document must be manually re-updated in the Load Profile Document code node if the master resume changes (see Decision 17)
+- Profile document must be manually re-uploaded to n8n if the master resume changes
 - Airtable free tier caps at 1,000 records — sufficient for personal job search use
 - n8n self-hosted or cloud instance required; cloud instance recommended for follow-up nudge scheduling reliability
-
----
-
-## Implementation-Phase Decisions (Phase 7 additions)
-
-The following decisions were not anticipated during the design phase. They were made during implementation and recorded during the Phase 7 feedback loop.
-
----
-
-## Decision 16 — Airtable checkbox updates: HTTP Request PATCH over native Airtable node
-**Status: LOCKED**
-
-**Decision:** The follow-up nudge workflow uses HTTP Request PATCH nodes to update the Follow-up sent day 7 and Follow-up sent day 14 checkbox fields, rather than the native n8n Airtable node.
-
-**Rationale:** The n8n Airtable node v2 routes all update operations through batchUpdate internally. When configured with "Columns to match on: id," the node treats "id" as a user-created column name to search by — not as the internal Airtable record ID. Since no user-created column named "id" exists in the Applications table, the search returns nothing and the batchUpdate request is malformed, producing a 422 INVALID_RECORDS error. The Airtable REST API accepts the properly formatted `{ records: [{ id: <record_id>, fields: { ... } }] }` PATCH payload directly with no ambiguity. HTTP Request bypasses the n8n node's internal routing.
-
-**Rejected alternatives:**
-- Native n8n Airtable node update operation — produces 422 INVALID_RECORDS due to batchUpdate bug described above
-
----
-
-## Decision 17 — Profile document delivery: embedded Code node string over static file reference
-**Status: LOCKED**
-
-**Decision:** The candidate profile text is embedded as a hardcoded string in a Code node (Load Profile Document) in the core pipeline workflow, rather than uploaded to n8n as a static file reference as specified in the masterplan.
-
-**Rationale:** n8n's static file reference configuration required non-obvious setup during implementation (file storage configuration, path resolution behavior). Embedding the profile text directly in a Code node is simpler and eliminates a file management dependency. The tradeoff is that updating the profile requires editing the workflow directly, but profile updates are infrequent at v1 scale. The v2 remediation path is to externalize the profile to an n8n variable or properly configured file reference.
-
-**Rejected alternatives:**
-- n8n static file reference — configuration complexity discovered during implementation; risk of runtime path resolution errors
-
----
-
-## Decision 18 — Slack message construction: JavaScript Code node over n8n expressions
-**Status: LOCKED**
-
-**Decision:** Slack message bodies in the follow-up nudge workflow are constructed in JavaScript Code nodes (Prepare Day 7 Message, Prepare Day 14 Message) rather than inline n8n expression syntax in the HTTP Request node body field.
-
-**Rationale:** Constructing multi-field formatted strings in n8n expression syntax is error-prone and produces hard-to-debug failures when fields are undefined or null. JavaScript string templates in a Code node are readable, debuggable, and allow iterating over multiple records in a single pass. The Code node also provides a natural place to add the slackBody field to each item before the HTTP Request node consumes it.
-
-**Rejected alternatives:**
-- Inline n8n expressions in HTTP Request body — produces opaque "[undefined]" errors on missing fields, harder to debug and maintain for multi-field interpolation
-
----
-
-## Decision 19 — n8n expression syntax for HTTP Request JSON body fields: `{{ }}` over `={{ }}`
-**Status: LOCKED**
-
-**Decision:** In n8n HTTP Request nodes, JSON body fields set to Expression mode use `{{ expression }}` syntax without a leading `=`. All other n8n parameter fields that toggle between Fixed and Expression mode use `={{ expression }}` with the leading `=`.
-
-**Rationale:** The `=` prefix is a toggle-mode field syntax. HTTP Request node JSON body fields in Expression mode are not toggle-mode fields — they are always expression fields. The leading `=` in this context causes the expression to fail silently, producing the literal string "=undefined" or similar. This distinction is underdocumented in n8n. The pattern was confirmed through testing: `{{ $json.slackBody }}` works; `={{ $json.slackBody }}` fails.
-
-**Rejected alternatives:**
-- `={{ }}` syntax in HTTP Request JSON body fields — causes expression failure; produces literal `=[undefined]` output

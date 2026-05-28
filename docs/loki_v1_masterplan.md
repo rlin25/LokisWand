@@ -1,5 +1,7 @@
 # LokisWand — Masterplan v1
 
+**Status:** Implementation complete. All eight phases passed. Phase 7 feedback loop complete. Next phase: v2 design.
+
 ## Overview
 LokisWand is a job application intelligence pipeline built in n8n. It accepts a pasted job description, evaluates candidate fit using dual Claude assessments and a synthesis call, logs all results to Airtable, and delivers follow-up nudges via Slack at defined intervals. The system is designed for minimum viable user input: one-time profile setup and per-application job description paste.
 
@@ -18,16 +20,45 @@ All implementation decisions are locked in the following documents. Claude Code 
 ```
 lokiswand/
 ├── profile/
-│   ├── loki_candidate_profile.md        # Generated profile document — static n8n input
+│   ├── loki_candidate_profile.md        # Generated profile document
 │   └── loki_conversion_prompt.md        # One-time Claude conversion prompt
 ├── prompts/
-│   ├── loki_instance_a_prompt.md        # Fit signals prompt directive
-│   ├── loki_instance_b_prompt.md        # Risk signals prompt directive
-│   └── loki_synthesis_prompt.md         # Synthesis prompt directive
+│   ├── general/                         # Reusable methodology prompts
+│   │   ├── 01_design_methodology.md
+│   │   ├── 02_readme_generation.md
+│   │   ├── 03_generate_walkthrough.md
+│   │   ├── 04_rewrite_glossary.md
+│   │   ├── 05_feedback_loop.md
+│   │   └── 06_generate_diagrams.md
+│   ├── project/                         # LokisWand-specific pipeline prompts
+│   │   ├── loki_instance_a_prompt.md    # Fit signals prompt directive
+│   │   ├── loki_instance_b_prompt.md    # Risk signals prompt directive
+│   │   └── loki_synthesis_prompt.md     # Synthesis prompt directive
+│   └── README.md
+├── walkthrough/                         # Annotated design rationale (post-implementation)
+│   ├── README.md
+│   ├── loki_core_pipeline.md
+│   ├── loki_followup_nudge.md
+│   ├── loki_candidate_profile.md
+│   ├── loki_conversion_prompt.md
+│   ├── loki_instance_a_prompt.md
+│   ├── loki_instance_b_prompt.md
+│   └── loki_synthesis_prompt.md
 ├── workflows/
 │   ├── loki_core_pipeline.json          # n8n core pipeline workflow export
 │   └── loki_followup_nudge.json         # n8n follow-up nudge workflow export
+├── docs/
+│   ├── loki_v1_design_decisions.md
+│   ├── loki_v1_glossary.md
+│   ├── loki_v1_interface_contract.md
+│   ├── loki_v1_masterplan.md
+│   └── loki_v1_setup_notes.md
+├── DESIGN.md
+├── DESIGN_DECISIONS.md
+├── INTERFACE_CONTRACT.md
 └── README.md
+
+[Updated post-implementation: Actual folder structure differs from the original plan. The prompts/ directory was reorganized into general/ (reusable methodology prompts) and project/ (LokisWand-specific pipeline prompts). A walkthrough/ directory was added post-implementation. Root-level DESIGN.md, DESIGN_DECISIONS.md, and INTERFACE_CONTRACT.md were added as reader-accessible documentation artifacts. The docs/ directory was preserved for the canonical versioned design documents.]
 ```
 
 ---

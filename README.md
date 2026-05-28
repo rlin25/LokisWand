@@ -16,6 +16,46 @@ Every submission lands in an Airtable kanban board with the full assessment reco
 
 ---
 
+```mermaid
+flowchart TD
+    subgraph input["User Input"]
+        A["Job Description\nForm"]
+    end
+
+    subgraph pipeline["Assessment Pipeline"]
+        B["Metadata\nExtraction"]
+        C{"Duplicate\nCheck"}
+        D["Instance A\nFit Signals"]
+        E["Instance B\nRisk Signals"]
+        F["Synthesis"]
+    end
+
+    subgraph outputs["Output"]
+        G[("Airtable")]
+        H["Slack"]
+    end
+
+    subgraph nudge["Follow-up Workflow · Daily 9 AM"]
+        I["Query Applied\nRecords"]
+        J["Send Nudge"]
+        K["Update Checkbox"]
+    end
+
+    A -->|"job description"| B
+    B -->|"company, role"| C
+    C -->|"no duplicate"| D & E
+    C -->|"duplicate found"| H
+    D -->|"fit signals"| F
+    E -->|"risk signals"| F
+    F -->|"recommendation"| G
+    G --> H
+    G -.->|"day 7 / day 14"| I
+    I -->|"qualifying records"| J
+    J --> K
+```
+
+---
+
 ## Why the Design Matters
 
 **Dual assessment, not single assessment.** One Claude instance evaluating candidate fit produces one perspective. Two instances with differentiated tasks — one constrained to fit signals, one to risk signals — produce genuine variance. The third synthesis call then does real analytical work on inputs that actually differ.
@@ -38,6 +78,15 @@ The design artifacts are version-stable. The n8n workflow is intentionally dispo
 
 ---
 
+## Companion Documents
+
+- **[DESIGN.md](DESIGN.md)** — architecture and system design. Start here if you want to understand how the system thinks.
+- **[INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md)** — every component's inputs, outputs, and data types. The stable contract the code was built against.
+- **[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md)** — every major decision with its reasoning and rejected alternatives documented. The clearest signal of how design tradeoffs were evaluated.
+- **[prompts/README.md](prompts/README.md)** — index of the prompt and methodology files that governed how the system was designed and documented.
+
+---
+
 ## Stack
 
 | Component | Tool |
@@ -49,7 +98,46 @@ The design artifacts are version-stable. The n8n workflow is intentionally dispo
 
 ---
 
-## Companion Documents
+## Setup
 
-- **[Interface Contract](docs/loki_v1_interface_contract.md)** — Every component's inputs, outputs, data types, and failure behaviors. The stable contract the workflow was built against. Start here if you want to understand what the system does.
-- **[Design Decisions](docs/loki_v1_design_decisions.md)** — Every architectural choice with reasoning and rejected alternatives documented. The clearest signal of how design tradeoffs were evaluated.
+### Prerequisites
+
+- n8n cloud account (cloud required for reliable follow-up nudge scheduling)
+- Airtable account with a personal access token
+- Anthropic API key
+- Slack workspace with an incoming webhook URL
+
+### Steps
+
+1. **Clone this repository**
+
+2. **Create the Airtable base**
+   - Create a base named LokisWand with one table: Applications
+   - Add all fields exactly as specified in [INTERFACE_CONTRACT.md](INTERFACE_CONTRACT.md) — field names and types are case-sensitive
+   - Create a kanban view grouped by the Status field
+
+3. **Configure n8n credentials and variables**
+   - Add your Airtable Personal Access Token as a credential in n8n
+   - Add your Anthropic API key as a credential in n8n
+   - Add a variable named `SLACK_WEBHOOK_URL` in n8n Settings → Variables with your Slack incoming webhook URL
+
+4. **Import workflows**
+   - Import `workflows/loki_core_pipeline.json`
+   - Import `workflows/loki_followup_nudge.json`
+   - Update credentials in both workflows to match your configured credentials
+   - Activate both workflows
+
+5. **Generate your candidate profile**
+   - Open `profile/loki_conversion_prompt.md`
+   - Paste the conversion prompt and your master resume into a Claude conversation
+   - Review the output — verify everything in the Review Required section
+   - Save as `profile/loki_candidate_profile.md`
+   - Paste the full profile text into the Load Profile Document code node in the core pipeline workflow
+
+### Demo story
+
+1. Open the n8n form trigger URL and paste any job description
+2. The pipeline runs: metadata extraction → duplicate check → parallel dual assessment → synthesis → Airtable write → Slack confirmation
+3. Open Airtable to see the full record: fit signals, risk signals, synthesis output, and recommendation
+4. Set the record's Status field to Applied
+5. Manually trigger the follow-up nudge workflow — if the record's date submitted is 7 or more days ago, a Slack message fires and the checkbox updates
