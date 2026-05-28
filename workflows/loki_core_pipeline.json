@@ -1,0 +1,702 @@
+{
+  "name": "LokisWand — Core Pipeline",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Job Description Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [60, 300],
+      "webhookId": "lokiswand-core-pipeline",
+      "parameters": {
+        "formTitle": "LokisWand — Submit Job Application",
+        "formDescription": "Paste the full job description text below. Do not include the URL — paste the complete listing.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Job Description",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "responseText": "Received. Your application is being evaluated — results will appear in Airtable shortly."
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Extract Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 512, messages: [{ role: \"user\", content: \"Extract the following fields from the job description below. Return ONLY a valid JSON object with exactly these four keys: company, role_title, location, employment_type. Set any field you cannot determine to null. Employment type must be one of: full-time, part-time, contract, or null. Output only the JSON object — no explanation, no markdown, no code fences.\\n\\nJob description:\\n\" + $json[\"Job Description\"] }] }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Claude API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Parse Metadata JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "jsCode": "const response = $input.first();\nconst jobDescription = $('Job Description Form').first().json['Job Description'];\n\nif (response.json.error || !response.json.content) {\n  return [{ json: { company: null, role_title: null, location: null, employment_type: null, jobDescription, extractionError: true } }];\n}\n\nconst text = response.json.content[0].text.trim();\nconst cleaned = text.replace(/^```json\\n?/, '').replace(/```$/, '').trim();\n\ntry {\n  const parsed = JSON.parse(cleaned);\n  return [{ json: { company: parsed.company || null, role_title: parsed.role_title || null, location: parsed.location || null, employment_type: parsed.employment_type || null, jobDescription } }];\n} catch (e) {\n  return [{ json: { company: null, role_title: null, location: null, employment_type: null, jobDescription, extractionError: true } }];\n}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Metadata Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-meta-company",
+              "leftValue": "={{ $json.company }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "empty" }
+            },
+            {
+              "id": "cond-meta-role",
+              "leftValue": "={{ $json.role_title }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "empty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Slack — Metadata Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [940, 500],
+      "parameters": {
+        "operation": "message",
+        "channel": "#job-search",
+        "text": "LokisWand pipeline halted: metadata extraction could not determine company name or role title from the submitted job description. Review the submission and resubmit."
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Check for Duplicate",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [940, 300],
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "value": "CONFIGURE_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "CONFIGURE_APPLICATIONS_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ \"AND({Company}='\" + $json.company + \"',{Role title}='\" + $json.role_title + \"')\" }}",
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Airtable Token"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Process Duplicate Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300],
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst meta = $('Parse Metadata JSON').first().json;\n\nconst hasRecord = allItems.length > 0 && allItems[0].json && allItems[0].json.id;\n\nreturn [{\n  json: {\n    isDuplicate: hasRecord,\n    company: meta.company,\n    role_title: meta.role_title,\n    location: meta.location,\n    employment_type: meta.employment_type,\n    jobDescription: meta.jobDescription\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "Duplicate Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1380, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond-dup",
+              "leftValue": "={{ $json.isDuplicate }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Slack — Duplicate Detected",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1600, 500],
+      "parameters": {
+        "operation": "message",
+        "channel": "#job-search",
+        "text": "={{ 'LokisWand: Duplicate submission halted. An application for ' + $json.company + ' — ' + $json.role_title + ' already exists in the tracker.' }}"
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-4000-8000-000000000010",
+      "name": "Instance A — Fit Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 2048, messages: [{ role: \"user\", content: \"You are one of two assessment agents evaluating a candidate against a job description. Your specific task is to identify fit signals — evidence that this candidate is a strong match for this role. A separate agent is handling risk signals. You do not need to cover both sides.\\n\\n## Your Task\\n\\nIdentify the strongest signals that this candidate is a strong fit for this role.\\n\\nBe specific. Reference exact skills, experiences, or highlights from the candidate profile that map to explicit requirements in the job listing. A fit signal is only genuine if it connects something concrete in the profile to something concrete in the listing. Do not make general statements about the candidate's background.\\n\\nFormat your response as a numbered list. Each item must follow this structure:\\n\\n**[Signal name]:** One to two sentence explanation connecting the specific profile evidence to the specific listing requirement.\\n\\n## Silence and Deferral\\n\\nDo not manufacture signals to meet a count. If fewer than three genuine fit signals exist, return only the signals that are real.\\n\\nIf no genuine fit signals exist, return exactly this — do not add to it or reframe it:\\n\\n> No genuine fit signals identified. Deferring to synthesis. [One sentence explaining why — e.g., the role requires domain expertise not present in the profile, or the technical requirements do not overlap with the candidate's stack.]\\n\\nThe synthesis agent will treat a deferral as meaningful evidence of weak fit. This is the correct behavior — do not attempt to compensate for it by finding marginal signals.\\n\\n## Inputs\\n\\n**Candidate profile:**\\n\" + $('CANDIDATE_PROFILE_NODE').first().json.profileText + \"\\n\\n**Job description:**\\n\" + $json.jobDescription }] }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Claude API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "a1b2c3d4-0011-4000-8000-000000000011",
+      "name": "Instance B — Risk Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 420],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 2048, messages: [{ role: \"user\", content: \"You are one of two assessment agents evaluating a candidate against a job description. Your specific task is to identify risk signals — evidence that this candidate may not be a strong match for this role. A separate agent is handling fit signals. You do not need to cover both sides.\\n\\n## Your Task\\n\\nIdentify the strongest risk signals for this candidate against this role.\\n\\nBe specific. Reference exact gaps, mismatches, or missing requirements relative to the job listing. A risk signal is only genuine if it identifies a concrete gap between what the listing requires and what the candidate profile demonstrates. Do not flag items the candidate clearly has — check the profile carefully before identifying a gap.\\n\\nFormat your response as a numbered list. Each item must follow this structure:\\n\\n**[Signal name]:** One to two sentence explanation identifying the specific gap or mismatch and where it appears in the listing.\\n\\n### Distinguishing gap types\\n\\nFor every risk signal you identify, explicitly state which of the following applies:\\n\\n- **In-progress:** The candidate's profile marks this as a known gap they are actively working to close. Label the signal \\\"(in-progress gap)\\\".\\n- **Unaddressed:** The gap is not acknowledged or being actively closed anywhere in the profile. Label the signal \\\"(unaddressed gap)\\\".\\n\\nThis distinction is required on every signal. Do not omit it.\\n\\n## Silence and Deferral\\n\\nDo not manufacture signals to meet a count. If fewer than three genuine risk signals exist, return only the signals that are real.\\n\\nIf no genuine risk signals exist, return exactly this — do not add to it or reframe it:\\n\\n> No genuine risk signals identified. Deferring to synthesis. [One sentence explaining why — e.g., the candidate's profile addresses all explicit requirements in the listing, or no meaningful gaps were found between the profile and the role.]\\n\\nThe synthesis agent will treat a deferral as meaningful evidence of strong fit. This is the correct behavior — do not attempt to compensate for it by finding marginal signals.\\n\\n## Inputs\\n\\n**Candidate profile:**\\n\" + $('CANDIDATE_PROFILE_NODE').first().json.profileText + \"\\n\\n**Job description:**\\n\" + $json.jobDescription }] }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Claude API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "a1b2c3d4-0012-4000-8000-000000000012",
+      "name": "Merge Assessments",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1820, 300],
+      "parameters": {
+        "mode": "waitForAll",
+        "mergeByFields": { "values": [] },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-4000-8000-000000000013",
+      "name": "Combine for Synthesis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2040, 300],
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst meta = $('Process Duplicate Check').first().json;\n\nlet fitSignals = '';\nlet riskSignals = '';\nlet assessmentError = false;\n\nfor (const item of allItems) {\n  if (item.json.error || !item.json.content) {\n    assessmentError = true;\n    break;\n  }\n  const text = item.json.content[0].text;\n  // Determine which instance this is by checking the prompt used (or use item index)\n  // Instance A (fit) and B (risk) are merged in order: index 0 = A, index 1 = B\n  if (!fitSignals) {\n    fitSignals = text;\n  } else {\n    riskSignals = text;\n  }\n}\n\nreturn [{\n  json: {\n    fitSignals,\n    riskSignals,\n    assessmentError,\n    company: meta.company,\n    role_title: meta.role_title,\n    location: meta.location,\n    employment_type: meta.employment_type\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013b-4000-8000-00000000013b",
+      "name": "Assessment Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2260, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond-assessment-error",
+              "leftValue": "={{ $json.assessmentError }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013c-4000-8000-00000000013c",
+      "name": "Slack — Assessment Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2480, 500],
+      "parameters": {
+        "operation": "message",
+        "channel": "#job-search",
+        "text": "={{ 'LokisWand pipeline halted: one or both assessment instances failed for ' + $json.company + ' — ' + $json.role_title + '. Review n8n execution logs.' }}"
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-4000-8000-000000000014",
+      "name": "Run Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2480, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 2048, messages: [{ role: \"user\", content: \"You are the synthesis agent in a three-stage candidate assessment pipeline. Two other agents have already evaluated the same candidate against the same role — one identified fit signals, the other identified risk signals. Your job is to reconcile their outputs into a single, actionable recommendation.\\n\\nYou are not summarizing. You are doing analytical work: resolving genuine conflicts, collapsing false ones, and incorporating deferrals as evidence. The recommendation you produce is the final output of the pipeline.\\n\\n## Your Task\\n\\nWork through the following four steps in order. Do not skip steps.\\n\\n### Step 1 — Resolve genuine conflicts\\n\\nIdentify any points where the fit assessment and the risk assessment appear to directly contradict each other. For each genuine conflict, state what the conflict is and resolve it with explicit reasoning. Do not leave conflicts unresolved — a hedged statement is not a resolution.\\n\\nIf no genuine conflicts exist, state that explicitly and move to Step 2.\\n\\n### Step 2 — Collapse false conflicts\\n\\nIdentify any apparent conflicts that are not genuine — cases where both agents are effectively observing the same thing from different angles. Collapse each false conflict into a single confident statement that reflects the underlying reality both agents were pointing at.\\n\\nIf no false conflicts exist, state that explicitly and move to Step 3.\\n\\n### Step 3 — Incorporate deferrals\\n\\nIf either agent deferred rather than producing signals, incorporate that deferral into your reasoning explicitly. Apply the following interpretation:\\n\\n- A deferral from the fit agent (Instance A) is evidence of weak fit — the candidate's profile did not produce genuine positive signals against this role.\\n- A deferral from the risk agent (Instance B) is evidence of strong fit — the candidate's profile produced no meaningful gaps against this role.\\n\\nDo not treat a deferral as missing data or an error. It is a meaningful finding.\\n\\nIf neither agent deferred, state that explicitly and move to Step 4.\\n\\n### Step 4 — Recommendation and justification\\n\\nConclude with a recommendation using exactly one of the following values — no variations, no qualifications appended to the label:\\n\\n**Strong Fit** | **Moderate Fit** | **Weak Fit** | **Do Not Apply**\\n\\nFollow the recommendation with a justification of one paragraph maximum. The justification must explain the reasoning that produced the recommendation, referencing the most significant signals and any deferral evidence. It must be specific to this candidate and this role — not a generic statement.\\n\\n## Output Format\\n\\nStructure your response with these four labeled sections:\\n\\n**Conflict Resolution:**\\n[Your Step 1 output]\\n\\n**Collapsed Signals:**\\n[Your Step 2 output]\\n\\n**Deferral Handling:**\\n[Your Step 3 output]\\n\\n**Recommendation:** [Strong Fit / Moderate Fit / Weak Fit / Do Not Apply]\\n[One paragraph justification]\\n\\n## Inputs\\n\\n**Fit assessment (Instance A output):**\\n\" + $json.fitSignals + \"\\n\\n**Risk assessment (Instance B output):**\\n\" + $json.riskSignals }] }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Claude API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "a1b2c3d4-0015-4000-8000-000000000015",
+      "name": "Parse Synthesis Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2700, 300],
+      "parameters": {
+        "jsCode": "const response = $input.first();\nconst combinedData = $('Combine for Synthesis').first().json;\n\nif (response.json.error || !response.json.content) {\n  return [{ json: { ...combinedData, synthesisText: null, recommendation: null, synthesisError: true } }];\n}\n\nconst text = response.json.content[0].text;\n\n// Extract recommendation enum from text\nconst enumMatch = text.match(/\\*\\*Recommendation:\\*\\*\\s*(Strong Fit|Moderate Fit|Weak Fit|Do Not Apply)/);\nconst recommendation = enumMatch ? enumMatch[1] : null;\n\nreturn [{\n  json: {\n    ...combinedData,\n    synthesisText: text,\n    recommendation,\n    synthesisError: !recommendation\n  }\n}];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-4000-8000-000000000016",
+      "name": "Synthesis Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2920, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond-synth-error",
+              "leftValue": "={{ $json.synthesisError }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0017-4000-8000-000000000017",
+      "name": "Log Partial to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [3140, 500],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "value": "CONFIGURE_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "CONFIGURE_APPLICATIONS_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Company": "={{ $json.company }}",
+            "Role title": "={{ $json.role_title }}",
+            "Location": "={{ $json.location }}",
+            "Employment type": "={{ $json.employment_type }}",
+            "Fit signals": "={{ $json.fitSignals }}",
+            "Risk signals": "={{ $json.riskSignals }}",
+            "Synthesis": "SYNTHESIS ERROR — see Slack notification",
+            "Status": "Researching",
+            "Profile version": "v1.0"
+          }
+        }
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Airtable Token"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "a1b2c3d4-0018-4000-8000-000000000018",
+      "name": "Slack — Synthesis Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [3360, 500],
+      "parameters": {
+        "operation": "message",
+        "channel": "#job-search",
+        "text": "={{ 'LokisWand pipeline halted: synthesis failed for ' + $json.company + ' — ' + $json.role_title + '. Partial results (fit and risk signals) have been logged to Airtable. Review n8n execution logs.' }}"
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0019-4000-8000-000000000019",
+      "name": "Write to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [3140, 300],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "value": "CONFIGURE_AIRTABLE_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "value": "CONFIGURE_APPLICATIONS_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Company": "={{ $json.company }}",
+            "Role title": "={{ $json.role_title }}",
+            "Location": "={{ $json.location }}",
+            "Employment type": "={{ $json.employment_type }}",
+            "Fit signals": "={{ $json.fitSignals }}",
+            "Risk signals": "={{ $json.riskSignals }}",
+            "Synthesis": "={{ $json.synthesisText }}",
+            "Recommendation": "={{ $json.recommendation }}",
+            "Status": "Researching",
+            "Follow-up sent day 7": false,
+            "Follow-up sent day 14": false,
+            "Profile version": "v1.0"
+          }
+        }
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Airtable Token"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "a1b2c3d4-0020-4000-8000-000000000020",
+      "name": "Airtable Write Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3360, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond-write-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-4000-8000-000000000021",
+      "name": "Slack — Write Failed",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [3580, 500],
+      "parameters": {
+        "operation": "message",
+        "channel": "#job-search",
+        "text": "={{ 'LokisWand: Airtable write failed for ' + $('Parse Synthesis Output').first().json.company + ' — ' + $('Parse Synthesis Output').first().json.role_title + '.\\n\\nRecommendation: ' + $('Parse Synthesis Output').first().json.recommendation + '\\n\\nSave this manually.\\n\\nFit signals:\\n' + $('Parse Synthesis Output').first().json.fitSignals + '\\n\\nRisk signals:\\n' + $('Parse Synthesis Output').first().json.riskSignals }}"
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-4000-8000-000000000022",
+      "name": "Slack — Pipeline Complete",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [3580, 300],
+      "parameters": {
+        "operation": "message",
+        "channel": "#job-search",
+        "text": "={{ 'LokisWand: Application logged.\\n\\nCompany: ' + $('Parse Synthesis Output').first().json.company + '\\nRole: ' + $('Parse Synthesis Output').first().json.role_title + '\\nRecommendation: ' + $('Parse Synthesis Output').first().json.recommendation }}"
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "CONFIGURE_IN_N8N",
+          "name": "Slack API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Job Description Form": {
+      "main": [
+        [
+          { "node": "Extract Metadata", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Extract Metadata": {
+      "main": [
+        [
+          { "node": "Parse Metadata JSON", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Metadata JSON": {
+      "main": [
+        [
+          { "node": "Metadata Valid?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Metadata Valid?": {
+      "main": [
+        [
+          { "node": "Slack — Metadata Error", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Check for Duplicate", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check for Duplicate": {
+      "main": [
+        [
+          { "node": "Process Duplicate Check", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Process Duplicate Check": {
+      "main": [
+        [
+          { "node": "Duplicate Found?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Duplicate Found?": {
+      "main": [
+        [
+          { "node": "Slack — Duplicate Detected", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Instance A — Fit Signals", "type": "main", "index": 0 },
+          { "node": "Instance B — Risk Signals", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Instance A — Fit Signals": {
+      "main": [
+        [
+          { "node": "Merge Assessments", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Instance B — Risk Signals": {
+      "main": [
+        [
+          { "node": "Merge Assessments", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Merge Assessments": {
+      "main": [
+        [
+          { "node": "Combine for Synthesis", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Combine for Synthesis": {
+      "main": [
+        [
+          { "node": "Assessment Error?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Assessment Error?": {
+      "main": [
+        [
+          { "node": "Slack — Assessment Error", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Run Synthesis", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Run Synthesis": {
+      "main": [
+        [
+          { "node": "Parse Synthesis Output", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Synthesis Output": {
+      "main": [
+        [
+          { "node": "Synthesis Error?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Synthesis Error?": {
+      "main": [
+        [
+          { "node": "Log Partial to Airtable", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Write to Airtable", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Log Partial to Airtable": {
+      "main": [
+        [
+          { "node": "Slack — Synthesis Error", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Write to Airtable": {
+      "main": [
+        [
+          { "node": "Airtable Write Failed?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Airtable Write Failed?": {
+      "main": [
+        [
+          { "node": "Slack — Write Failed", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Slack — Pipeline Complete", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "CONFIGURE_IN_N8N"
+  },
+  "id": "lokiswand-core-pipeline-v1",
+  "tags": [],
+  "_setupNotes": [
+    "BEFORE IMPORTING: This workflow requires the following credentials configured in n8n:",
+    "1. httpHeaderAuth named 'Claude API Key' — Header name: x-api-key, Value: your Anthropic API key",
+    "2. airtableTokenApi named 'Airtable Token' — your Airtable personal access token",
+    "3. slackApi named 'Slack API' — your Slack OAuth token",
+    "AFTER IMPORTING:",
+    "- Replace CONFIGURE_AIRTABLE_BASE_ID with your Airtable base ID (found in airtable.com URL or API docs)",
+    "- Replace CONFIGURE_APPLICATIONS_TABLE_ID with your Applications table ID",
+    "- In 'Instance A — Fit Signals' and 'Instance B — Risk Signals' nodes, replace CANDIDATE_PROFILE_NODE reference with the actual candidate profile text embedded in a Set node",
+    "- Add a Set node named 'Load Profile Document' before the Instance A/B nodes and paste your loki_candidate_profile.md content into a field named 'profileText'",
+    "- Connect 'Duplicate Found?' false branch through 'Load Profile Document' before splitting to Instance A and B"
+  ]
+}
