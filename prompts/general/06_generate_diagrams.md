@@ -83,6 +83,39 @@ Follow the diagram immediately with a one-sentence explanation of how to read it
 
 ---
 
+## Styling
+
+Color-code nodes by component type using `classDef`. Apply classes inline with `:::className`. Every diagram must use this pattern — unstyled diagrams are not acceptable.
+
+**Standard color palette:**
+
+| Component type | fill | stroke | color | font-weight |
+|---|---|---|---|---|
+| LLM/AI API calls | `#FEF3C7` | `#D97706` | `#92400E` | bold |
+| Data store | `#D1FAE5` | `#059669` | `#065F46` | bold |
+| Notification / alert | `#EDE9FE` | `#7C3AED` | `#4C1D95` | — |
+| User entry / trigger | `#DBEAFE` | `#2563EB` | `#1E3A8A` | bold |
+| Background process / state | `#FDF4FF` | `#A855F7` | `#6B21A8` | — |
+| Prompt / directive file | `#FEF3C7` | `#D97706` | `#92400E` | — |
+| Profile / data document | `#D1FAE5` | `#059669` | `#065F46` | — |
+| Workflow / executable file | `#DBEAFE` | `#2563EB` | `#1E3A8A` | bold |
+
+Add a one-line caption below each diagram (outside the code block) naming the color meanings, formatted in italic: `*Amber = Claude API call · Green = Airtable · ...*`
+
+**Node shape conventions:**
+- User entry / form trigger: `([Text])` rounded stadium
+- Data store: `[(Text)]` cylindrical
+- Decision / guard: `{Text}` rhombus
+- All other nodes: `[Text]` rectangle
+
+**classDef syntax example:**
+```
+classDef claude fill:#FEF3C7,stroke:#D97706,color:#92400E,font-weight:bold
+```
+Apply with `:::claude` inline on the node definition.
+
+---
+
 ## Constraints
 
 - Both diagrams must render correctly in standard Mermaid renderers (GitHub, VS Code Mermaid preview)
@@ -92,6 +125,7 @@ Follow the diagram immediately with a one-sentence explanation of how to read it
 - If a component relationship is too complex to represent cleanly in one diagram, split it into two diagrams rather than producing one unreadable diagram
 - Every node in Diagram 1 must correspond to a component described in the interface contract
 - Every node in Diagram 2 must correspond to a source file in `{SOURCE_FILES}`
+- Do not produce unstyled diagrams — every node must have a classDef applied
 
 ---
 

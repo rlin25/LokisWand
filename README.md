@@ -18,41 +18,49 @@ Every submission lands in an Airtable kanban board with the full assessment reco
 
 ```mermaid
 flowchart TD
+    classDef claude  fill:#FEF3C7,stroke:#D97706,color:#92400E,font-weight:bold
+    classDef store   fill:#D1FAE5,stroke:#059669,color:#065F46,font-weight:bold
+    classDef notify  fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,font-weight:bold
+    classDef entry   fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,font-weight:bold
+    classDef track   fill:#FDF4FF,stroke:#A855F7,color:#6B21A8
+
     subgraph input["User Input"]
-        A["Job Description\nForm"]
+        A(["Job Description Form"]):::entry
     end
 
     subgraph pipeline["Assessment Pipeline"]
-        B["Metadata\nExtraction"]
-        C{"Duplicate\nCheck"}
-        D["Instance A\nFit Signals"]
-        E["Instance B\nRisk Signals"]
-        F["Synthesis"]
+        B["Metadata Extraction"]:::claude
+        C{"Duplicate Check"}
+        D["Instance A — Fit Signals"]:::claude
+        E["Instance B — Risk Signals"]:::claude
+        F["Synthesis"]:::claude
     end
 
     subgraph outputs["Output"]
-        G[("Airtable")]
-        H["Slack"]
+        G[("Airtable")]:::store
+        H["Slack"]:::notify
     end
 
-    subgraph nudge["Follow-up Workflow · Daily 9 AM"]
-        I["Query Applied\nRecords"]
-        J["Send Nudge"]
-        K["Update Checkbox"]
+    subgraph followup["Follow-up Workflow · Daily 9 AM"]
+        I["Query Applied Records"]:::track
+        J["Send Nudge"]:::notify
+        K["Mark Notified"]:::track
     end
 
     A -->|"job description"| B
-    B -->|"company, role"| C
-    C -->|"no duplicate"| D & E
-    C -->|"duplicate found"| H
+    B -->|"company · role · location"| C
+    C -->|"no match"| D & E
+    C -->|"duplicate"| H
     D -->|"fit signals"| F
     E -->|"risk signals"| F
     F -->|"recommendation"| G
     G --> H
-    G -.->|"day 7 / day 14"| I
+    G -.->|"day 7 / 14"| I
     I -->|"qualifying records"| J
     J --> K
 ```
+
+*Amber = Claude API call · Green = Airtable · Purple = Slack notification · Blue = user entry · Violet = follow-up state*
 
 ---
 

@@ -6,15 +6,27 @@ This directory contains annotated design rationale documents for every source fi
 
 ```mermaid
 flowchart TD
-    A["loki_conversion_prompt.md"] -->|"one-time: generates"| B["loki_candidate_profile.md"]
+    classDef prompt   fill:#FEF3C7,stroke:#D97706,color:#92400E
+    classDef profile  fill:#D1FAE5,stroke:#059669,color:#065F46
+    classDef workflow fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,font-weight:bold
+
+    A["loki_conversion_prompt.md"]:::prompt
+    B["loki_candidate_profile.md"]:::profile
+    C["loki_instance_a_prompt.md"]:::prompt
+    D["loki_instance_b_prompt.md"]:::prompt
+    F["loki_synthesis_prompt.md"]:::prompt
+    E["loki_core_pipeline.json"]:::workflow
+    G["loki_followup_nudge.json"]:::workflow
+
+    A -->|"one-time: generates"| B
     B -->|"candidate context"| E
-    C["loki_instance_a_prompt.md"] -->|"fit directive"| E
-    D["loki_instance_b_prompt.md"] -->|"risk directive"| E
-    F["loki_synthesis_prompt.md"] -->|"synthesis directive"| E
-    E["loki_core_pipeline.json"] -->|"Airtable records"| G["loki_followup_nudge.json"]
+    C -->|"fit directive"| E
+    D -->|"risk directive"| E
+    F -->|"synthesis directive"| E
+    E -->|"Airtable records"| G
 ```
 
-Nodes are source files. Edges show which files feed into which: an arrow from A to B means A's output is consumed by B. `loki_conversion_prompt.md` runs once (setup); all others run per job submission or on a daily schedule.
+*Amber = prompt/directive · Green = profile document · Blue = n8n workflow. Arrows show which files feed into which.*
 
 ---
 
