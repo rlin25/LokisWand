@@ -23,23 +23,17 @@
       "name": "Query Day 7 Records",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [280, 200],
+      "position": [280, 180],
       "parameters": {
         "operation": "search",
-        "base": {
-          "value": "CONFIGURE_AIRTABLE_BASE_ID",
-          "mode": "id"
-        },
-        "table": {
-          "value": "CONFIGURE_APPLICATIONS_TABLE_ID",
-          "mode": "id"
-        },
+        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
+        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
         "filterByFormula": "AND({Status}='Applied', NOT({Follow-up sent day 7}), DATETIME_DIFF(TODAY(), {Date submitted}, 'days') >= 7, DATETIME_DIFF(TODAY(), {Date submitted}, 'days') < 21)",
         "options": {}
       },
       "credentials": {
         "airtableTokenApi": {
-          "id": "CONFIGURE_IN_N8N",
+          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
           "name": "Airtable Token"
         }
       },
@@ -50,7 +44,7 @@
       "name": "Day 7 Records Found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [500, 200],
+      "position": [500, 180],
       "parameters": {
         "conditions": {
           "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
@@ -69,19 +63,16 @@
     {
       "id": "b2c3d4e5-0004-4000-8000-000000000004",
       "name": "Slack — Day 7 Nudge",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [720, 120],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 100],
       "parameters": {
-        "operation": "message",
-        "channel": "#job-search",
-        "text": "={{ 'Follow-up Reminder\\nCompany: ' + $json.fields.Company + '\\nRole: ' + $json.fields['Role title'] + '\\nApplied: ' + $json.fields['Date submitted'] + '\\nDay 7 follow-up due — have you heard back?' }}"
-      },
-      "credentials": {
-        "slackApi": {
-          "id": "CONFIGURE_IN_N8N",
-          "name": "Slack API"
-        }
+        "method": "POST",
+        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: 'Follow-up Reminder\\nCompany: ' + $json.fields.Company + '\\nRole: ' + $json.fields['Role title'] + '\\nApplied: ' + $json.fields['Date submitted'] + '\\nDay 7 follow-up due — have you heard back?' }) }}",
+        "options": {}
       },
       "continueOnFail": true
     },
@@ -90,17 +81,11 @@
       "name": "Update Day 7 Checkbox",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
-      "position": [940, 120],
+      "position": [940, 100],
       "parameters": {
         "operation": "update",
-        "base": {
-          "value": "CONFIGURE_AIRTABLE_BASE_ID",
-          "mode": "id"
-        },
-        "table": {
-          "value": "CONFIGURE_APPLICATIONS_TABLE_ID",
-          "mode": "id"
-        },
+        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
+        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
         "id": "={{ $json.id }}",
         "columns": {
           "mappingMode": "defineBelow",
@@ -111,7 +96,7 @@
       },
       "credentials": {
         "airtableTokenApi": {
-          "id": "CONFIGURE_IN_N8N",
+          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
           "name": "Airtable Token"
         }
       },
@@ -125,20 +110,14 @@
       "position": [280, 420],
       "parameters": {
         "operation": "search",
-        "base": {
-          "value": "CONFIGURE_AIRTABLE_BASE_ID",
-          "mode": "id"
-        },
-        "table": {
-          "value": "CONFIGURE_APPLICATIONS_TABLE_ID",
-          "mode": "id"
-        },
+        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
+        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
         "filterByFormula": "AND({Status}='Applied', NOT({Follow-up sent day 14}), DATETIME_DIFF(TODAY(), {Date submitted}, 'days') >= 14, DATETIME_DIFF(TODAY(), {Date submitted}, 'days') < 21)",
         "options": {}
       },
       "credentials": {
         "airtableTokenApi": {
-          "id": "CONFIGURE_IN_N8N",
+          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
           "name": "Airtable Token"
         }
       },
@@ -168,19 +147,16 @@
     {
       "id": "b2c3d4e5-0008-4000-8000-000000000008",
       "name": "Slack — Day 14 Nudge",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [720, 360],
       "parameters": {
-        "operation": "message",
-        "channel": "#job-search",
-        "text": "={{ 'Follow-up Reminder\\nCompany: ' + $json.fields.Company + '\\nRole: ' + $json.fields['Role title'] + '\\nApplied: ' + $json.fields['Date submitted'] + '\\nDay 14 follow-up due — have you heard back?' }}"
-      },
-      "credentials": {
-        "slackApi": {
-          "id": "CONFIGURE_IN_N8N",
-          "name": "Slack API"
-        }
+        "method": "POST",
+        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: 'Follow-up Reminder\\nCompany: ' + $json.fields.Company + '\\nRole: ' + $json.fields['Role title'] + '\\nApplied: ' + $json.fields['Date submitted'] + '\\nDay 14 follow-up due — have you heard back?' }) }}",
+        "options": {}
       },
       "continueOnFail": true
     },
@@ -192,14 +168,8 @@
       "position": [940, 360],
       "parameters": {
         "operation": "update",
-        "base": {
-          "value": "CONFIGURE_AIRTABLE_BASE_ID",
-          "mode": "id"
-        },
-        "table": {
-          "value": "CONFIGURE_APPLICATIONS_TABLE_ID",
-          "mode": "id"
-        },
+        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
+        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
         "id": "={{ $json.id }}",
         "columns": {
           "mappingMode": "defineBelow",
@@ -210,7 +180,7 @@
       },
       "credentials": {
         "airtableTokenApi": {
-          "id": "CONFIGURE_IN_N8N",
+          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
           "name": "Airtable Token"
         }
       },
@@ -218,98 +188,59 @@
     },
     {
       "id": "b2c3d4e5-0010-4000-8000-000000000010",
-      "name": "Workflow Error Handler",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
+      "name": "Slack — Workflow Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [1160, 240],
       "parameters": {
-        "operation": "message",
-        "channel": "#job-search",
-        "text": "LokisWand follow-up nudge workflow encountered an error during today's run. Records may not have been updated. The workflow will retry tomorrow."
-      },
-      "credentials": {
-        "slackApi": {
-          "id": "CONFIGURE_IN_N8N",
-          "name": "Slack API"
-        }
+        "method": "POST",
+        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: 'LokisWand follow-up nudge workflow encountered an error during today run. Records may not have been updated. The workflow will retry tomorrow.' }) }}",
+        "options": {}
       }
     }
   ],
   "connections": {
     "Daily Schedule": {
-      "main": [
-        [
-          { "node": "Query Day 7 Records", "type": "main", "index": 0 },
-          { "node": "Query Day 14 Records", "type": "main", "index": 0 }
-        ]
-      ]
+      "main": [[
+        { "node": "Query Day 7 Records", "type": "main", "index": 0 },
+        { "node": "Query Day 14 Records", "type": "main", "index": 0 }
+      ]]
     },
     "Query Day 7 Records": {
-      "main": [
-        [
-          { "node": "Day 7 Records Found?", "type": "main", "index": 0 }
-        ]
-      ]
+      "main": [[{ "node": "Day 7 Records Found?", "type": "main", "index": 0 }]]
     },
     "Day 7 Records Found?": {
       "main": [
-        [
-          { "node": "Slack — Day 7 Nudge", "type": "main", "index": 0 }
-        ],
+        [{ "node": "Slack — Day 7 Nudge", "type": "main", "index": 0 }],
         []
       ]
     },
     "Slack — Day 7 Nudge": {
-      "main": [
-        [
-          { "node": "Update Day 7 Checkbox", "type": "main", "index": 0 }
-        ]
-      ]
+      "main": [[{ "node": "Update Day 7 Checkbox", "type": "main", "index": 0 }]]
     },
     "Query Day 14 Records": {
-      "main": [
-        [
-          { "node": "Day 14 Records Found?", "type": "main", "index": 0 }
-        ]
-      ]
+      "main": [[{ "node": "Day 14 Records Found?", "type": "main", "index": 0 }]]
     },
     "Day 14 Records Found?": {
       "main": [
-        [
-          { "node": "Slack — Day 14 Nudge", "type": "main", "index": 0 }
-        ],
+        [{ "node": "Slack — Day 14 Nudge", "type": "main", "index": 0 }],
         []
       ]
     },
     "Slack — Day 14 Nudge": {
-      "main": [
-        [
-          { "node": "Update Day 14 Checkbox", "type": "main", "index": 0 }
-        ]
-      ]
+      "main": [[{ "node": "Update Day 14 Checkbox", "type": "main", "index": 0 }]]
     }
   },
   "pinData": {},
   "settings": {
     "executionOrder": "v1",
-    "errorWorkflow": "CONFIGURE_ERROR_WORKFLOW_ID"
+    "errorWorkflow": ""
   },
   "staticData": null,
-  "meta": {
-    "templateCredsSetupCompleted": false,
-    "instanceId": "CONFIGURE_IN_N8N"
-  },
+  "meta": { "templateCredsSetupCompleted": false },
   "id": "lokiswand-followup-nudge-v1",
-  "tags": [],
-  "_setupNotes": [
-    "BEFORE IMPORTING: This workflow requires the following credentials configured in n8n:",
-    "1. airtableTokenApi named 'Airtable Token' — your Airtable personal access token",
-    "2. slackApi named 'Slack API' — your Slack OAuth token",
-    "AFTER IMPORTING:",
-    "- Replace CONFIGURE_AIRTABLE_BASE_ID with your Airtable base ID",
-    "- Replace CONFIGURE_APPLICATIONS_TABLE_ID with your Applications table ID",
-    "- Set the schedule timezone to your local timezone in the Daily Schedule node",
-    "- The schedule is set to 9:00 AM UTC — adjust the cron expression if needed (e.g., '0 14 * * *' for 9 AM EST)",
-    "- Optionally configure an Error Workflow in Settings to catch workflow-level failures and route to Slack"
-  ]
+  "tags": []
 }
