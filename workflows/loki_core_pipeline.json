@@ -2,13 +2,8 @@
   "name": "LokisWand — Core Pipeline",
   "nodes": [
     {
-      "id": "a1b2c3d4-0001-4000-8000-000000000001",
-      "name": "Job Description Form",
-      "type": "n8n-nodes-base.formTrigger",
-      "typeVersion": 2.1,
-      "position": [60, 300],
-      "webhookId": "lokiswand-core-pipeline",
       "parameters": {
+        "path": "7899181d-f299-485e-a947-c2a7ba3d8645",
         "formTitle": "LokisWand — Submit Job Application",
         "formDescription": "Paste the full job description text below. Do not include the URL — paste the complete listing.",
         "formFields": {
@@ -20,26 +15,35 @@
             }
           ]
         },
-        "responseMode": "onReceived",
-        "responseText": "Received. Your application is being evaluated — results will appear in Airtable shortly."
-      }
+        "options": {}
+      },
+      "id": "32a2b369-e7d5-4996-988d-2dcce828380c",
+      "name": "Job Description Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [
+        -1648,
+        96
+      ],
+      "webhookId": "7899181d-f299-485e-a947-c2a7ba3d8645"
     },
     {
-      "id": "a1b2c3d4-0002-4000-8000-000000000002",
-      "name": "Extract Metadata",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [280, 300],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -47,72 +51,96 @@
         "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 512, messages: [{ role: \"user\", content: \"Extract the following fields from the job description below. Return ONLY a valid JSON object with exactly these four keys: company, role_title, location, employment_type. Set any field you cannot determine to null. Employment type must be one of: full-time, part-time, contract, or null. Output only the JSON object — no explanation, no markdown, no code fences.\\n\\nJob description:\\n\" + $json[\"Job Description\"] }] }) }}",
         "options": {}
       },
+      "id": "fa2f3a50-6222-4f16-bb3a-16c3e605354d",
+      "name": "Extract Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1424,
+        96
+      ],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "SELECT_YOUR_CLAUDE_CREDENTIAL",
-          "name": "Claude API Key"
+        "anthropicApi": {
+          "id": "H7IDcKM2mwN9cpdZ",
+          "name": "Anthropic account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "parameters": {
+        "jsCode": "const response = $input.first();\nconst jobDescription = $('Job Description Form').first().json['Job Description'];\n\nif (response.json.error || !response.json.content) {\n  return [{ json: { company: null, role_title: null, location: null, employment_type: null, jobDescription, extractionError: true } }];\n}\n\nconst text = response.json.content[0].text.trim();\nconst cleaned = text.replace(/^```json\\n?/, '').replace(/```$/, '').trim();\n\ntry {\n  const parsed = JSON.parse(cleaned);\n  return [{ json: { company: parsed.company || null, role_title: parsed.role_title || null, location: parsed.location || null, employment_type: parsed.employment_type || null, jobDescription } }];\n} catch (e) {\n  return [{ json: { company: null, role_title: null, location: null, employment_type: null, jobDescription, extractionError: true } }];\n}"
+      },
+      "id": "f2432dcb-80f5-4b8b-adda-225dad1301a1",
       "name": "Parse Metadata JSON",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [500, 300],
-      "parameters": {
-        "jsCode": "const response = $input.first();\nconst jobDescription = $('Job Description Form').first().json['Job Description'];\n\nif (response.json.error || !response.json.content) {\n  return [{ json: { company: null, role_title: null, location: null, employment_type: null, jobDescription, extractionError: true } }];\n}\n\nconst text = response.json.content[0].text.trim();\nconst cleaned = text.replace(/^```json\\n?/, '').replace(/```$/, '').trim();\n\ntry {\n  const parsed = JSON.parse(cleaned);\n  return [{ json: { company: parsed.company || null, role_title: parsed.role_title || null, location: parsed.location || null, employment_type: parsed.employment_type || null, jobDescription } }];\n} catch (e) {\n  return [{ json: { company: null, role_title: null, location: null, employment_type: null, jobDescription, extractionError: true } }];\n}"
-      }
+      "position": [
+        -1216,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0004-4000-8000-000000000004",
-      "name": "Metadata Valid?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [720, 300],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "cond-meta-company",
               "leftValue": "={{ $json.company }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "empty" }
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
             },
             {
               "id": "cond-meta-role",
               "leftValue": "={{ $json.role_title }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "empty" }
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
             }
           ],
           "combinator": "and"
-        }
-      }
+        },
+        "options": {}
+      },
+      "id": "087f467c-12c7-4171-ae39-f579fbb067e5",
+      "name": "Metadata Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0005-4000-8000-000000000005",
-      "name": "Slack — Metadata Error",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [940, 500],
       "parameters": {
         "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: 'LokisWand pipeline halted: metadata extraction could not determine company name or role title. Review the submission and resubmit.' }) }}",
         "options": {}
-      }
+      },
+      "id": "e2a3330a-7a76-4f21-bea6-5c71a57d2510",
+      "name": "Slack — Metadata Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -768,
+        288
+      ]
     },
     {
-      "id": "a1b2c3d4-0006-4000-8000-000000000006",
-      "name": "Check for Duplicate",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [940, 300],
       "parameters": {
         "operation": "search",
         "base": {
@@ -126,86 +154,117 @@
         "filterByFormula": "={{ \"AND({Company}='\" + $json.company + \"',{Role title}='\" + $json.role_title + \"')\" }}",
         "options": {}
       },
+      "id": "8592cd7b-9d0e-493b-8ccf-45ff538308c9",
+      "name": "Check for Duplicate",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        96
+      ],
+      "alwaysOutputData": true,
       "credentials": {
         "airtableTokenApi": {
-          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
-          "name": "Airtable Token"
+          "id": "9QQKiKufVltzWDO5",
+          "name": "Airtable Personal Access Token account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst meta = $('Parse Metadata JSON').first().json;\n\nconst hasRecord = allItems.length > 0 && allItems[0].json && allItems[0].json.id;\n\nreturn [{\n  json: {\n    isDuplicate: !!hasRecord,\n    company: meta.company,\n    role_title: meta.role_title,\n    location: meta.location,\n    employment_type: meta.employment_type,\n    jobDescription: meta.jobDescription\n  }\n}];"
+      },
+      "id": "96818ada-dcd7-45e2-8e97-2684a2084690",
       "name": "Process Duplicate Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 300],
-      "parameters": {
-        "jsCode": "const allItems = $input.all();\nconst meta = $('Parse Metadata JSON').first().json;\n\nconst hasRecord = allItems.length > 0 && allItems[0].json && allItems[0].json.id;\n\nreturn [{\n  json: {\n    isDuplicate: !!hasRecord,\n    company: meta.company,\n    role_title: meta.role_title,\n    location: meta.location,\n    employment_type: meta.employment_type,\n    jobDescription: meta.jobDescription\n  }\n}];"
-      }
+      "position": [
+        -544,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0008-4000-8000-000000000008",
-      "name": "Duplicate Found?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1380, 300],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "cond-dup",
               "leftValue": "={{ $json.isDuplicate }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
-        }
-      }
+        },
+        "options": {}
+      },
+      "id": "273dcb33-c1a5-4fed-ae66-9ce0f0d3fe17",
+      "name": "Duplicate Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0009-4000-8000-000000000009",
-      "name": "Slack — Duplicate Detected",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1600, 500],
       "parameters": {
         "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: 'LokisWand: Duplicate submission halted. An application for ' + $json.company + ' — ' + $json.role_title + ' already exists in the tracker.' }) }}",
         "options": {}
-      }
+      },
+      "id": "2934cdb2-7210-448b-9f0d-d606eeba8fd2",
+      "name": "Slack — Duplicate Detected",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -112,
+        288
+      ]
     },
     {
-      "id": "a1b2c3d4-000a-4000-8000-00000000000a",
+      "parameters": {
+        "jsCode": "const prev = $('Process Duplicate Check').first().json;\n\nconst profileText = `# Candidate Profile\n**Last updated:** 2026-05-27\n**Version:** v1.0\n\n---\n\n## Review Required\n*All fields in this section were inferred by Claude.\nVerify before first use.*\n\n### Hard Constraints\n- **Location constraints:** Based in New York, NY (resume header); previously Austin, TX. Open to remote or hybrid likely required — verify whether relocation or remote preference applies.\n- **Salary floor:** Not stated. Inferred from founder/CEO background and AI engineering market rates: likely $130,000–$160,000+ for individual contributor roles. Verify and set explicitly.\n- **Other hard constraints:** None explicitly stated. Verify whether contract or part-time roles are acceptable, or if full-time only.\n\n### Goals\n- **Target role type:** AI Engineer or AI/ML Engineer (individual contributor). Possibly open to founding engineer or lead roles at early-stage companies given PrismForge background. Verify whether people management is desired or avoided.\n- **Preferred company stage:** Early-stage to mid-stage (Series A–C) based on startup trajectory (PrismForge, OwnerFi, LAUNCH Accelerator participation). Open to fintech or automation-heavy domains. Verify.\n\n### Known Gaps\n- No explicit production experience with traditional ML model training or fine-tuning at scale (PyTorch listed in skills but no project demonstrates training runs beyond DistilBERT fine-tuning for HackAI).\n- No demonstrated experience with data engineering pipelines (ETL, Spark, Airflow, dbt) — relevant if role requires data infrastructure ownership.\n- No cloud certifications or demonstrated deep AWS experience beyond EC2 deployment (no RDS, Lambda at scale, ECS, SageMaker, etc.).\n- No formal team leadership or engineering management experience — relevant if roles require managing reports.\n\n---\n\n## Profile\n\n### Identity\n- **Name:** Richard Lin\n- **Headline:** AI Engineer — Multi-Agent Systems, RAG Pipelines, and Production AI Automation\n- **Summary:** AI Engineer with a background in building multi-agent systems and RAG-based automation. Proven experience architecting production-ready AI solutions — from financial exception triage to computer vision workflows — with a strong focus on CI/CD, evaluation pipelines, and scalable cloud infrastructure. Founded PrismForge AI to build Claude-based validation systems for strategy consultants. HackAI winner. Design-first practitioner.\n\n### Skills\n\n#### Programming Languages & Scripting\n- Python, JavaScript, Bash, C#, Java, HTML/CSS\n\n#### Frameworks & Libraries\n- FastAPI, LangGraph, LangChain, ASP.NET, OpenCV, PyTorch, SpecFlow (BDD), Wit.AI\n\n#### AI & LLM\n- Anthropic Claude API, RAG Pipelines, Chroma, sentence-transformers, Ollama, llama-cpp-python\n\n#### Databases & Data Stores\n- MongoDB, DynamoDB, SQLite, Chroma\n\n#### DevOps & CI/CD\n- GitHub Actions, Docker, Poetry, Cloudflare Workers, Git, Bitbucket, YAML\n\n#### Cloud & Infrastructure\n- AWS EC2, AWS VPC, AWS Lambda, GitHub Pages, Google Cloud Platform, Linux\n\n#### Tools & Platforms\n- Claude Code, CVAT, Jira, Confluence, Postman\n\n#### Testing & QA\n- PyTest, JUnit, NUnit, Postman\n\n#### Methodologies\n- Design-First Development, Human-in-the-Loop AI, Agile (Scrum), Kanban\n\n---\n\n### Experience\n\n#### PrismForge AI — Founder, CEO — Nov 2025 – Present\n**Achievements:**\n- Built multi-agent Claude validation systems for independent strategy consultants.\n- Designed adversarial multi-agent system to evaluate mergers via converging/diverging AI debate.\n- Participated in LAUNCH Accelerator program developing early-stage go-to-market strategy.\n\n**Technical details:**\nAnthropic Claude API, multi-agent orchestration, adversarial agent design patterns, go-to-market strategy development.\n\n---\n\n#### OwnerFi — AI Specialist — Jul 2025 – Oct 2025\n**Achievements:**\n- Built voice agents for automated outbound marketing calls.\n- Managed CRM pipeline from customer contact through outreach records.\n- Developed AI-powered real estate matchmaking platform connecting sellers with optimal buyers.\n- Translated and redesigned ownerfi.ai, improving overall UI/UX for Spanish-speaking users.\n\n**Technical details:**\nVoice agent development, CRM pipeline management, AI-powered matchmaking platform, HTML/CSS UI redesign.\n\n---\n\n#### Independent — Software Consultant — May 2022 – Oct 2024\n**Achievements:**\n- Developed automation tools to streamline image processing workflows.\n- Led end-to-end delivery of a 50,000+ annotated image dataset for machine learning applications.\n- Automated validation logic via Bash scripting to reduce manual QA time by over 50%.\n\n**Technical details:**\nPython, OpenCV, Bash, CVAT (annotation tooling), image processing pipeline automation, dataset preparation for ML training.\n\n---\n\n#### Breakin' Boundaries — Web Developer, Cofounder — Jan 2021 – Jun 2021\n**Achievements:**\n- Launched digital marketing firm serving dancers and creatives in Dallas.\n- Redesigned web assets and branding.\n- Boosted client engagement by 150% via SEO optimization and Facebook Ads campaigns.\n\n**Technical details:**\nHTML/CSS, GIMP, Adobe Illustrator, SEO optimization, Facebook Ads.\n\n---\n\n#### Charles Schwab — Tech Services Intern — Jun 2019 – Aug 2020\n**Achievements:**\n- Built interactive financial network visualization demoed exclusively to directors across US campuses; adopted by internal development teams.\n- Wrote regression test suites in a BDD-driven pipeline.\n- Modernized internal tooling and documentation to support QA infrastructure.\n\n**Technical details:**\nASP.NET, JavaScript, C#, SpecFlow (BDD), NUnit, internal tooling development, regression testing, financial data visualization.\n\n---\n\n### Projects\n\n#### Huginn v2 — AI Trade Exception Triage Agent — May 2026\n**Achievements:**\n- Built a FastAPI + LangGraph agent that auto-resolves or escalates financial trade exceptions.\n- Implemented RAG retrieval over six SEC/FINRA regulatory documents with Claude API decisions.\n- Deployed interactive recruiter demo to GitHub Pages backed by a Cloudflare Worker proxy.\n- Maintained version-stable API contracts and architecture docs across a six-phase build.\n\n**Technical details:**\nFastAPI, LangGraph, Claude API, RAG pipeline, Chroma, Cloudflare Workers, GitHub Pages, SEC/FINRA regulatory document processing, design-first methodology with versioned interface contracts.\n\n---\n\n#### AI Prompt Evaluator (FrizzlesRubric) — May 2025\n**Achievements:**\n- Won HackAI building a distributed prompt evaluator with 7 fine-tuned DistilBERT experts.\n- Deployed on AWS EC2 with isolated VPC, bastion host, and microservices orchestration.\n- Implemented CI/CD and system observability for a multi-expert evaluation pipeline.\n\n**Technical details:**\nDistilBERT, sentence-transformers, PyTorch (fine-tuning), AWS EC2, AWS VPC, bastion host configuration, microservices architecture, GitHub Actions CI/CD, distributed system observability.\n\n---\n\n#### AI Discord Bot (SophiesRocket) — April 2025\n**Achievements:**\n- Created AI Discord bot for real-time LLM interaction.\n- Used Docker and Poetry for containerization and dependency management.\n- Implemented CI/CD workflows using GitHub Actions for automated testing and deployment.\n\n**Technical details:**\nPython, llama-cpp-python, Ollama, Docker, Poetry, GitHub Actions, Discord API.\n\n---\n\n#### Interactive Portfolio — July 2025\n**Achievements:**\n- Built responsive site with mobile and desktop layouts.\n- Built interactive D3.js diagram of live AWS VPC architecture with 7 ML experts.\n- Created automated deployment script to streamline git workflow.\n\n**Technical details:**\nJavaScript, D3.js, HTML/CSS, AWS VPC architecture visualization, automated deployment scripting.\n\n---\n\n#### Computer Vision ANPR — May 2022\n**Achievements:**\n- Annotated and prepared 50,000+ image datasets to train an ANPR model.\n- Built OpenCV + Python tool to validate AI-predicted license plate text against images.\n- Automated image organization by camera ID via Bash.\n\n**Technical details:**\nPython, OpenCV, CVAT, Bash, ANPR model training data preparation, automated image validation pipeline.\n\n---\n\n#### AI Habit Tracker — Jun 2020\n**Achievements:**\n- Engineered habit optimization assistant deployed for a Facebook hackathon.\n- Deployed full-stack app via Google Cloud Platform.\n\n**Technical details:**\nWit.AI, MongoDB, Node.js, React, Google Cloud Platform, full-stack deployment.\n\n---\n\n#### UTD Parking Assist — May 2019\n**Achievements:**\n- Built full-stack parking tracker for UTD.\n- Scraped and parsed live parking data.\n- Created Alexa Skill for HackUTD.\n\n**Technical details:**\nMongoDB, Express, React, Node.js, Python, Google Cloud Platform, AWS Lambda, Alexa Skills Kit, live data scraping.\n\n---\n\n#### Balance Graph MML — Jun 2019\n**Achievements:**\n- Built interactive financial data systems visualization demoed to Schwab directors; adopted internally.\n\n**Technical details:**\nASP.NET, JavaScript, C#, financial data visualization.\n\n---\n\n### Education\n\n#### The University of Texas at Dallas — Computer Science — 2018–2020\n\n#### Austin Community College — A.S. in Computer Science — 2016–2018\n\n#### Texas A&M University — Computer Science — 2013–2014\n- President's Endowed Scholarship\n\n---\n\n### Highlights and Accolades\n\n#### HackAI Winner — AI Prompt Evaluator (FrizzlesRubric)\n**Description:** Won HackAI by building a distributed LLM prompt evaluation system using 7 fine-tuned DistilBERT experts, deployed on AWS EC2 with VPC isolation and microservices orchestration.\n**Tags:** LLM evaluation, multi-agent systems, distributed systems, AWS, hackathon win, AI engineering\n\n#### Financial Agent Lead — Huginn v2\n**Description:** Built a production-ready LangGraph + FastAPI agent for automated SEC/FINRA trade exception triage, with RAG retrieval over regulatory documents and a live recruiter demo deployment.\n**Tags:** RAG pipelines, LangGraph, financial domain, production AI, Claude API, design-first development\n\n#### Founder — PrismForge AI\n**Description:** Founded AI consultancy building Claude-based multi-agent validation systems for strategy consultants, including adversarial debate systems for merger evaluation.\n**Tags:** multi-agent systems, Claude API, founding engineer, AI consulting, adversarial agents\n\n#### LAUNCH Accelerator Participant\n**Description:** Selected for LAUNCH Accelerator program while developing PrismForge AI, working on early-stage go-to-market strategy for an AI product.\n**Tags:** startup, go-to-market, accelerator, early-stage\n\n#### Automation Specialist — Computer Vision ANPR\n**Description:** Delivered 50,000+ annotated images and built OpenCV/Bash tooling that reduced QA time by over 50% on an ANPR model training pipeline.\n**Tags:** computer vision, automation, OpenCV, dataset preparation, QA engineering\n\n#### Schwab Internal Adoption — Balance Graph MML\n**Description:** Built a financial data visualization tool as an intern that was demoed exclusively to directors and later adopted by internal Schwab development teams.\n**Tags:** financial domain, data visualization, internal tooling, stakeholder presentation`;\n\nreturn [{\n  json: {\n    profileText,\n    company: prev.company,\n    role_title: prev.role_title,\n    location: prev.location,\n    employment_type: prev.employment_type,\n    jobDescription: prev.jobDescription\n  }\n}];"
+      },
+      "id": "658a15ad-62a4-4ec2-835b-1fd00de4f824",
       "name": "Load Profile Document",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1600, 300],
-      "parameters": {
-        "jsCode": "const prev = $('Process Duplicate Check').first().json;\n\nconst profileText = `# Candidate Profile\n**Last updated:** 2026-05-27\n**Version:** v1.0\n\n---\n\n## Review Required\n*All fields in this section were inferred by Claude.\nVerify before first use.*\n\n### Hard Constraints\n- **Location constraints:** Based in New York, NY (resume header); previously Austin, TX. Open to remote or hybrid likely required — verify whether relocation or remote preference applies.\n- **Salary floor:** Not stated. Inferred from founder/CEO background and AI engineering market rates: likely $130,000–$160,000+ for individual contributor roles. Verify and set explicitly.\n- **Other hard constraints:** None explicitly stated. Verify whether contract or part-time roles are acceptable, or if full-time only.\n\n### Goals\n- **Target role type:** AI Engineer or AI/ML Engineer (individual contributor). Possibly open to founding engineer or lead roles at early-stage companies given PrismForge background. Verify whether people management is desired or avoided.\n- **Preferred company stage:** Early-stage to mid-stage (Series A–C) based on startup trajectory (PrismForge, OwnerFi, LAUNCH Accelerator participation). Open to fintech or automation-heavy domains. Verify.\n\n### Known Gaps\n- No explicit production experience with traditional ML model training or fine-tuning at scale (PyTorch listed in skills but no project demonstrates training runs beyond DistilBERT fine-tuning for HackAI).\n- No demonstrated experience with data engineering pipelines (ETL, Spark, Airflow, dbt) — relevant if role requires data infrastructure ownership.\n- No cloud certifications or demonstrated deep AWS experience beyond EC2 deployment (no RDS, Lambda at scale, ECS, SageMaker, etc.).\n- No formal team leadership or engineering management experience — relevant if roles require managing reports.\n\n---\n\n## Profile\n\n### Identity\n- **Name:** Richard Lin\n- **Headline:** AI Engineer — Multi-Agent Systems, RAG Pipelines, and Production AI Automation\n- **Summary:** AI Engineer with a background in building multi-agent systems and RAG-based automation. Proven experience architecting production-ready AI solutions — from financial exception triage to computer vision workflows — with a strong focus on CI/CD, evaluation pipelines, and scalable cloud infrastructure. Founded PrismForge AI to build Claude-based validation systems for strategy consultants. HackAI winner. Design-first practitioner.\n\n### Skills\n\n#### Programming Languages & Scripting\n- Python, JavaScript, Bash, C#, Java, HTML/CSS\n\n#### Frameworks & Libraries\n- FastAPI, LangGraph, LangChain, ASP.NET, OpenCV, PyTorch, SpecFlow (BDD), Wit.AI\n\n#### AI & LLM\n- Anthropic Claude API, RAG Pipelines, Chroma, sentence-transformers, Ollama, llama-cpp-python\n\n#### Databases & Data Stores\n- MongoDB, DynamoDB, SQLite, Chroma\n\n#### DevOps & CI/CD\n- GitHub Actions, Docker, Poetry, Cloudflare Workers, Git, Bitbucket, YAML\n\n#### Cloud & Infrastructure\n- AWS EC2, AWS VPC, AWS Lambda, GitHub Pages, Google Cloud Platform, Linux\n\n#### Tools & Platforms\n- Claude Code, CVAT, Jira, Confluence, Postman\n\n#### Testing & QA\n- PyTest, JUnit, NUnit, Postman\n\n#### Methodologies\n- Design-First Development, Human-in-the-Loop AI, Agile (Scrum), Kanban\n\n---\n\n### Experience\n\n#### PrismForge AI — Founder, CEO — Nov 2025 – Present\n**Achievements:**\n- Built multi-agent Claude validation systems for independent strategy consultants.\n- Designed adversarial multi-agent system to evaluate mergers via converging/diverging AI debate.\n- Participated in LAUNCH Accelerator program developing early-stage go-to-market strategy.\n\n**Technical details:**\nAnthropic Claude API, multi-agent orchestration, adversarial agent design patterns, go-to-market strategy development.\n\n---\n\n#### OwnerFi — AI Specialist — Jul 2025 – Oct 2025\n**Achievements:**\n- Built voice agents for automated outbound marketing calls.\n- Managed CRM pipeline from customer contact through outreach records.\n- Developed AI-powered real estate matchmaking platform connecting sellers with optimal buyers.\n- Translated and redesigned ownerfi.ai, improving overall UI/UX for Spanish-speaking users.\n\n**Technical details:**\nVoice agent development, CRM pipeline management, AI-powered matchmaking platform, HTML/CSS UI redesign.\n\n---\n\n#### Independent — Software Consultant — May 2022 – Oct 2024\n**Achievements:**\n- Developed automation tools to streamline image processing workflows.\n- Led end-to-end delivery of a 50,000+ annotated image dataset for machine learning applications.\n- Automated validation logic via Bash scripting to reduce manual QA time by over 50%.\n\n**Technical details:**\nPython, OpenCV, Bash, CVAT (annotation tooling), image processing pipeline automation, dataset preparation for ML training.\n\n---\n\n#### Breakin' Boundaries — Web Developer, Cofounder — Jan 2021 – Jun 2021\n**Achievements:**\n- Launched digital marketing firm serving dancers and creatives in Dallas.\n- Redesigned web assets and branding.\n- Boosted client engagement by 150% via SEO optimization and Facebook Ads campaigns.\n\n**Technical details:**\nHTML/CSS, GIMP, Adobe Illustrator, SEO optimization, Facebook Ads.\n\n---\n\n#### Charles Schwab — Tech Services Intern — Jun 2019 – Aug 2020\n**Achievements:**\n- Built interactive financial network visualization demoed exclusively to directors across US campuses; adopted by internal development teams.\n- Wrote regression test suites in a BDD-driven pipeline.\n- Modernized internal tooling and documentation to support QA infrastructure.\n\n**Technical details:**\nASP.NET, JavaScript, C#, SpecFlow (BDD), NUnit, internal tooling development, regression testing, financial data visualization.\n\n---\n\n### Projects\n\n#### Huginn v2 — AI Trade Exception Triage Agent — May 2026\n**Achievements:**\n- Built a FastAPI + LangGraph agent that auto-resolves or escalates financial trade exceptions.\n- Implemented RAG retrieval over six SEC/FINRA regulatory documents with Claude API decisions.\n- Deployed interactive recruiter demo to GitHub Pages backed by a Cloudflare Worker proxy.\n- Maintained version-stable API contracts and architecture docs across a six-phase build.\n\n**Technical details:**\nFastAPI, LangGraph, Claude API, RAG pipeline, Chroma, Cloudflare Workers, GitHub Pages, SEC/FINRA regulatory document processing, design-first methodology with versioned interface contracts.\n\n---\n\n#### AI Prompt Evaluator (FrizzlesRubric) — May 2025\n**Achievements:**\n- Won HackAI building a distributed prompt evaluator with 7 fine-tuned DistilBERT experts.\n- Deployed on AWS EC2 with isolated VPC, bastion host, and microservices orchestration.\n- Implemented CI/CD and system observability for a multi-expert evaluation pipeline.\n\n**Technical details:**\nDistilBERT, sentence-transformers, PyTorch (fine-tuning), AWS EC2, AWS VPC, bastion host configuration, microservices architecture, GitHub Actions CI/CD, distributed system observability.\n\n---\n\n#### AI Discord Bot (SophiesRocket) — April 2025\n**Achievements:**\n- Created AI Discord bot for real-time LLM interaction.\n- Used Docker and Poetry for containerization and dependency management.\n- Implemented CI/CD workflows using GitHub Actions for automated testing and deployment.\n\n**Technical details:**\nPython, llama-cpp-python, Ollama, Docker, Poetry, GitHub Actions, Discord API.\n\n---\n\n#### Interactive Portfolio — July 2025\n**Achievements:**\n- Built responsive site with mobile and desktop layouts.\n- Built interactive D3.js diagram of live AWS VPC architecture with 7 ML experts.\n- Created automated deployment script to streamline git workflow.\n\n**Technical details:**\nJavaScript, D3.js, HTML/CSS, AWS VPC architecture visualization, automated deployment scripting.\n\n---\n\n#### Computer Vision ANPR — May 2022\n**Achievements:**\n- Annotated and prepared 50,000+ image datasets to train an ANPR model.\n- Built OpenCV + Python tool to validate AI-predicted license plate text against images.\n- Automated image organization by camera ID via Bash.\n\n**Technical details:**\nPython, OpenCV, CVAT, Bash, ANPR model training data preparation, automated image validation pipeline.\n\n---\n\n#### AI Habit Tracker — Jun 2020\n**Achievements:**\n- Engineered habit optimization assistant deployed for a Facebook hackathon.\n- Deployed full-stack app via Google Cloud Platform.\n\n**Technical details:**\nWit.AI, MongoDB, Node.js, React, Google Cloud Platform, full-stack deployment.\n\n---\n\n#### UTD Parking Assist — May 2019\n**Achievements:**\n- Built full-stack parking tracker for UTD.\n- Scraped and parsed live parking data.\n- Created Alexa Skill for HackUTD.\n\n**Technical details:**\nMongoDB, Express, React, Node.js, Python, Google Cloud Platform, AWS Lambda, Alexa Skills Kit, live data scraping.\n\n---\n\n#### Balance Graph MML — Jun 2019\n**Achievements:**\n- Built interactive financial data systems visualization demoed to Schwab directors; adopted internally.\n\n**Technical details:**\nASP.NET, JavaScript, C#, financial data visualization.\n\n---\n\n### Education\n\n#### The University of Texas at Dallas — Computer Science — 2018–2020\n\n#### Austin Community College — A.S. in Computer Science — 2016–2018\n\n#### Texas A&M University — Computer Science — 2013–2014\n- President's Endowed Scholarship\n\n---\n\n### Highlights and Accolades\n\n#### HackAI Winner — AI Prompt Evaluator (FrizzlesRubric)\n**Description:** Won HackAI by building a distributed LLM prompt evaluation system using 7 fine-tuned DistilBERT experts, deployed on AWS EC2 with VPC isolation and microservices orchestration.\n**Tags:** LLM evaluation, multi-agent systems, distributed systems, AWS, hackathon win, AI engineering\n\n#### Financial Agent Lead — Huginn v2\n**Description:** Built a production-ready LangGraph + FastAPI agent for automated SEC/FINRA trade exception triage, with RAG retrieval over regulatory documents and a live recruiter demo deployment.\n**Tags:** RAG pipelines, LangGraph, financial domain, production AI, Claude API, design-first development\n\n#### Founder — PrismForge AI\n**Description:** Founded AI consultancy building Claude-based multi-agent validation systems for strategy consultants, including adversarial debate systems for merger evaluation.\n**Tags:** multi-agent systems, Claude API, founding engineer, AI consulting, adversarial agents\n\n#### LAUNCH Accelerator Participant\n**Description:** Selected for LAUNCH Accelerator program while developing PrismForge AI, working on early-stage go-to-market strategy for an AI product.\n**Tags:** startup, go-to-market, accelerator, early-stage\n\n#### Automation Specialist — Computer Vision ANPR\n**Description:** Delivered 50,000+ annotated images and built OpenCV/Bash tooling that reduced QA time by over 50% on an ANPR model training pipeline.\n**Tags:** computer vision, automation, OpenCV, dataset preparation, QA engineering\n\n#### Schwab Internal Adoption — Balance Graph MML\n**Description:** Built a financial data visualization tool as an intern that was demoed exclusively to directors and later adopted by internal Schwab development teams.\n**Tags:** financial domain, data visualization, internal tooling, stakeholder presentation`;\n\nreturn [{\n  json: {\n    profileText,\n    company: prev.company,\n    role_title: prev.role_title,\n    location: prev.location,\n    employment_type: prev.employment_type,\n    jobDescription: prev.jobDescription\n  }\n}];"
-      }
+      "position": [
+        -112,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0010-4000-8000-000000000010",
-      "name": "Instance A — Fit Signals",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1820, 180],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -213,30 +272,39 @@
         "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 2048, messages: [{ role: \"user\", content: \"You are one of two assessment agents evaluating a candidate against a job description. Your specific task is to identify fit signals — evidence that this candidate is a strong match for this role. A separate agent is handling risk signals. You do not need to cover both sides.\\n\\n## Your Task\\n\\nIdentify the strongest signals that this candidate is a strong fit for this role.\\n\\nBe specific. Reference exact skills, experiences, or highlights from the candidate profile that map to explicit requirements in the job listing. A fit signal is only genuine if it connects something concrete in the profile to something concrete in the listing. Do not make general statements about the candidate's background.\\n\\nFormat your response as a numbered list. Each item must follow this structure:\\n\\n**[Signal name]:** One to two sentence explanation connecting the specific profile evidence to the specific listing requirement.\\n\\n## Silence and Deferral\\n\\nDo not manufacture signals to meet a count. If fewer than three genuine fit signals exist, return only the signals that are real.\\n\\nIf no genuine fit signals exist, return exactly this — do not add to it or reframe it:\\n\\n> No genuine fit signals identified. Deferring to synthesis. [One sentence explaining why — e.g., the role requires domain expertise not present in the profile, or the technical requirements do not overlap with the candidate's stack.]\\n\\nThe synthesis agent will treat a deferral as meaningful evidence of weak fit. This is the correct behavior — do not attempt to compensate for it by finding marginal signals.\\n\\n## Inputs\\n\\n**Candidate profile:**\\n\" + $json.profileText + \"\\n\\n**Job description:**\\n\" + $json.jobDescription }] }) }}",
         "options": {}
       },
+      "id": "6f548186-e0fe-444b-9814-686f37f5f68c",
+      "name": "Instance A — Fit Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        112,
+        -32
+      ],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "SELECT_YOUR_CLAUDE_CREDENTIAL",
-          "name": "Claude API Key"
+        "anthropicApi": {
+          "id": "H7IDcKM2mwN9cpdZ",
+          "name": "Anthropic account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "a1b2c3d4-0011-4000-8000-000000000011",
-      "name": "Instance B — Risk Signals",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1820, 420],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -244,87 +312,103 @@
         "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 2048, messages: [{ role: \"user\", content: \"You are one of two assessment agents evaluating a candidate against a job description. Your specific task is to identify risk signals — evidence that this candidate may not be a strong match for this role. A separate agent is handling fit signals. You do not need to cover both sides.\\n\\n## Your Task\\n\\nIdentify the strongest risk signals for this candidate against this role.\\n\\nBe specific. Reference exact gaps, mismatches, or missing requirements relative to the job listing. A risk signal is only genuine if it identifies a concrete gap between what the listing requires and what the candidate profile demonstrates. Do not flag items the candidate clearly has — check the profile carefully before identifying a gap.\\n\\nFormat your response as a numbered list. Each item must follow this structure:\\n\\n**[Signal name]:** One to two sentence explanation identifying the specific gap or mismatch and where it appears in the listing.\\n\\n### Distinguishing gap types\\n\\nFor every risk signal you identify, explicitly state which of the following applies:\\n\\n- **In-progress:** The candidate's profile marks this as a known gap they are actively working to close. Label the signal \\\"(in-progress gap)\\\".\\n- **Unaddressed:** The gap is not acknowledged or being actively closed anywhere in the profile. Label the signal \\\"(unaddressed gap)\\\".\\n\\nThis distinction is required on every signal. Do not omit it.\\n\\n## Silence and Deferral\\n\\nDo not manufacture signals to meet a count. If fewer than three genuine risk signals exist, return only the signals that are real.\\n\\nIf no genuine risk signals exist, return exactly this — do not add to it or reframe it:\\n\\n> No genuine risk signals identified. Deferring to synthesis. [One sentence explaining why — e.g., the candidate's profile addresses all explicit requirements in the listing, or no meaningful gaps were found between the profile and the role.]\\n\\nThe synthesis agent will treat a deferral as meaningful evidence of strong fit. This is the correct behavior — do not attempt to compensate for it by finding marginal signals.\\n\\n## Inputs\\n\\n**Candidate profile:**\\n\" + $json.profileText + \"\\n\\n**Job description:**\\n\" + $json.jobDescription }] }) }}",
         "options": {}
       },
+      "id": "c4fa2498-db64-4456-a951-ceb11f34738d",
+      "name": "Instance B — Risk Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        112,
+        208
+      ],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "SELECT_YOUR_CLAUDE_CREDENTIAL",
-          "name": "Claude API Key"
+        "anthropicApi": {
+          "id": "H7IDcKM2mwN9cpdZ",
+          "name": "Anthropic account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "a1b2c3d4-0012-4000-8000-000000000012",
-      "name": "Merge Assessments",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [2040, 300],
       "parameters": {
-        "mode": "waitForAll",
-        "options": {}
-      }
-    },
-    {
-      "id": "a1b2c3d4-0013-4000-8000-000000000013",
+        "jsCode": "const allItems = $input.all();\nconst meta = $('Load Profile Document').first().json;\n\nlet fitSignals = '';\nlet riskSignals = '';\nlet assessmentError = false;\n\nfor (const item of allItems) {\n  if (!item.json.content || item.json.error) {\n    assessmentError = true;\n    break;\n  }\n  const text = item.json.content[0].text;\n  if (!fitSignals) {\n    fitSignals = text;\n  } else {\n    riskSignals = text;\n  }\n}\n\nreturn [{\n  json: {\n    fitSignals,\n    riskSignals,\n    assessmentError,\n    company: meta.company,\n    role_title: meta.role_title,\n    location: meta.location,\n    employment_type: meta.employment_type\n  }\n}];"
+      },
+      "id": "077b6849-a9cd-490b-af38-6ac8d85fb995",
       "name": "Combine for Synthesis",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2260, 300],
-      "parameters": {
-        "jsCode": "const allItems = $input.all();\nconst meta = $('Load Profile Document').first().json;\n\nlet fitSignals = '';\nlet riskSignals = '';\nlet assessmentError = false;\n\nfor (const item of allItems) {\n  if (!item.json.content || item.json.error) {\n    assessmentError = true;\n    break;\n  }\n  const text = item.json.content[0].text;\n  if (!fitSignals) {\n    fitSignals = text;\n  } else {\n    riskSignals = text;\n  }\n}\n\nreturn [{\n  json: {\n    fitSignals,\n    riskSignals,\n    assessmentError,\n    company: meta.company,\n    role_title: meta.role_title,\n    location: meta.location,\n    employment_type: meta.employment_type\n  }\n}];"
-      }
+      "position": [
+        560,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0013b-4000-8000-00000000013b",
-      "name": "Assessment Error?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [2480, 300],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "cond-assessment-error",
               "leftValue": "={{ $json.assessmentError }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
-        }
-      }
+        },
+        "options": {}
+      },
+      "id": "a185e30b-17d0-4653-bb15-7b53570fa2bd",
+      "name": "Assessment Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        784,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0013c-4000-8000-00000000013c",
-      "name": "Slack — Assessment Error",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2700, 500],
       "parameters": {
         "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: 'LokisWand pipeline halted: one or both assessment instances failed for ' + $json.company + ' — ' + $json.role_title + '. Review n8n execution logs.' }) }}",
         "options": {}
-      }
-    },
-    {
-      "id": "a1b2c3d4-0014-4000-8000-000000000014",
-      "name": "Run Synthesis",
+      },
+      "id": "361151c6-a9e7-4156-8651-2db13d65353c",
+      "name": "Slack — Assessment Error",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2700, 300],
+      "position": [
+        992,
+        288
+      ]
+    },
+    {
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -332,55 +416,79 @@
         "jsonBody": "={{ JSON.stringify({ model: \"claude-opus-4-7\", max_tokens: 2048, messages: [{ role: \"user\", content: \"You are the synthesis agent in a three-stage candidate assessment pipeline. Two other agents have already evaluated the same candidate against the same role — one identified fit signals, the other identified risk signals. Your job is to reconcile their outputs into a single, actionable recommendation.\\n\\nYou are not summarizing. You are doing analytical work: resolving genuine conflicts, collapsing false ones, and incorporating deferrals as evidence. The recommendation you produce is the final output of the pipeline.\\n\\n## Your Task\\n\\nWork through the following four steps in order. Do not skip steps.\\n\\n### Step 1 — Resolve genuine conflicts\\n\\nIdentify any points where the fit assessment and the risk assessment appear to directly contradict each other. For each genuine conflict, state what the conflict is and resolve it with explicit reasoning. Do not leave conflicts unresolved — a hedged statement is not a resolution.\\n\\nIf no genuine conflicts exist, state that explicitly and move to Step 2.\\n\\n### Step 2 — Collapse false conflicts\\n\\nIdentify any apparent conflicts that are not genuine — cases where both agents are effectively observing the same thing from different angles. Collapse each false conflict into a single confident statement that reflects the underlying reality both agents were pointing at.\\n\\nIf no false conflicts exist, state that explicitly and move to Step 3.\\n\\n### Step 3 — Incorporate deferrals\\n\\nIf either agent deferred rather than producing signals, incorporate that deferral into your reasoning explicitly. Apply the following interpretation:\\n\\n- A deferral from the fit agent (Instance A) is evidence of weak fit — the candidate's profile did not produce genuine positive signals against this role.\\n- A deferral from the risk agent (Instance B) is evidence of strong fit — the candidate's profile produced no meaningful gaps against this role.\\n\\nDo not treat a deferral as missing data or an error. It is a meaningful finding.\\n\\nIf neither agent deferred, state that explicitly and move to Step 4.\\n\\n### Step 4 — Recommendation and justification\\n\\nConclude with a recommendation using exactly one of the following values — no variations, no qualifications appended to the label:\\n\\n**Strong Fit** | **Moderate Fit** | **Weak Fit** | **Do Not Apply**\\n\\nFollow the recommendation with a justification of one paragraph maximum. The justification must explain the reasoning that produced the recommendation, referencing the most significant signals and any deferral evidence. It must be specific to this candidate and this role — not a generic statement.\\n\\n## Output Format\\n\\nStructure your response with these four labeled sections:\\n\\n**Conflict Resolution:**\\n[Your Step 1 output]\\n\\n**Collapsed Signals:**\\n[Your Step 2 output]\\n\\n**Deferral Handling:**\\n[Your Step 3 output]\\n\\n**Recommendation:** [Strong Fit / Moderate Fit / Weak Fit / Do Not Apply]\\n[One paragraph justification]\\n\\n## Inputs\\n\\n**Fit assessment (Instance A output):**\\n\" + $json.fitSignals + \"\\n\\n**Risk assessment (Instance B output):**\\n\" + $json.riskSignals }] }) }}",
         "options": {}
       },
+      "id": "75367479-34f6-4997-86b3-e592f97bb62c",
+      "name": "Run Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        96
+      ],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "SELECT_YOUR_CLAUDE_CREDENTIAL",
-          "name": "Claude API Key"
+        "anthropicApi": {
+          "id": "H7IDcKM2mwN9cpdZ",
+          "name": "Anthropic account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "a1b2c3d4-0015-4000-8000-000000000015",
+      "parameters": {
+        "jsCode": "const response = $input.first();\nconst combinedData = $('Combine for Synthesis').first().json;\n\nif (!response.json.content || response.json.error) {\n  return [{ json: { ...combinedData, synthesisText: null, recommendation: null, synthesisError: true } }];\n}\n\nconst text = response.json.content[0].text;\nconst enumMatch = text.match(/\\*\\*Recommendation:\\*\\*\\s*(Strong Fit|Moderate Fit|Weak Fit|Do Not Apply)/);\nconst recommendation = enumMatch ? enumMatch[1] : null;\n\nreturn [{\n  json: {\n    ...combinedData,\n    synthesisText: text,\n    recommendation,\n    synthesisError: !recommendation\n  }\n}];"
+      },
+      "id": "dd4ce613-4e40-48de-9d5a-ab6f8ddcd89e",
       "name": "Parse Synthesis Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2920, 300],
-      "parameters": {
-        "jsCode": "const response = $input.first();\nconst combinedData = $('Combine for Synthesis').first().json;\n\nif (!response.json.content || response.json.error) {\n  return [{ json: { ...combinedData, synthesisText: null, recommendation: null, synthesisError: true } }];\n}\n\nconst text = response.json.content[0].text;\nconst enumMatch = text.match(/\\*\\*Recommendation:\\*\\*\\s*(Strong Fit|Moderate Fit|Weak Fit|Do Not Apply)/);\nconst recommendation = enumMatch ? enumMatch[1] : null;\n\nreturn [{\n  json: {\n    ...combinedData,\n    synthesisText: text,\n    recommendation,\n    synthesisError: !recommendation\n  }\n}];"
-      }
+      "position": [
+        1216,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0016-4000-8000-000000000016",
-      "name": "Synthesis Error?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [3140, 300],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "cond-synth-error",
               "leftValue": "={{ $json.synthesisError }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
-        }
-      }
+        },
+        "options": {}
+      },
+      "id": "376f1bce-9d14-4480-8778-be5a3c9d101c",
+      "name": "Synthesis Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0017-4000-8000-000000000017",
-      "name": "Log Partial to Airtable",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [3360, 500],
       "parameters": {
         "operation": "create",
-        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
-        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
+        "base": {
+          "value": "applZgAP2KgAezIIr",
+          "mode": "id"
+        },
+        "table": {
+          "value": "tblQwqOlS9E9nFZU6",
+          "mode": "id"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -394,41 +502,54 @@
             "Status": "Researching",
             "Profile version": "v1.0"
           }
-        }
+        },
+        "options": {}
       },
+      "id": "8854d3ab-3412-4062-aa74-020ce0d9b93a",
+      "name": "Log Partial to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        288
+      ],
       "credentials": {
         "airtableTokenApi": {
-          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
-          "name": "Airtable Token"
+          "id": "9QQKiKufVltzWDO5",
+          "name": "Airtable Personal Access Token account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "a1b2c3d4-0018-4000-8000-000000000018",
-      "name": "Slack — Synthesis Error",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [3580, 500],
       "parameters": {
         "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: 'LokisWand pipeline halted: synthesis failed for ' + $json.company + ' — ' + $json.role_title + '. Partial results logged to Airtable.' }) }}",
         "options": {}
-      }
+      },
+      "id": "489ef41d-bb1b-4c5c-bfc6-9310858fa1e0",
+      "name": "Slack — Synthesis Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1872,
+        288
+      ]
     },
     {
-      "id": "a1b2c3d4-0019-4000-8000-000000000019",
-      "name": "Write to Airtable",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [3360, 300],
       "parameters": {
         "operation": "create",
-        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
-        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
+        "base": {
+          "value": "applZgAP2KgAezIIr",
+          "mode": "id"
+        },
+        "table": {
+          "value": "tblQwqOlS9E9nFZU6",
+          "mode": "id"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -445,149 +566,368 @@
             "Follow-up sent day 14": false,
             "Profile version": "v1.0"
           }
-        }
+        },
+        "options": {}
       },
+      "id": "970c5e7f-eb94-4f54-8586-87e4d8511787",
+      "name": "Write to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        96
+      ],
       "credentials": {
         "airtableTokenApi": {
-          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
-          "name": "Airtable Token"
+          "id": "9QQKiKufVltzWDO5",
+          "name": "Airtable Personal Access Token account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "a1b2c3d4-0020-4000-8000-000000000020",
-      "name": "Airtable Write Failed?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [3580, 300],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "cond-write-error",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "empty" }
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
             }
           ],
           "combinator": "and"
-        }
-      }
+        },
+        "options": {}
+      },
+      "id": "83e15670-009b-497a-9283-8953d484e546",
+      "name": "Airtable Write Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        96
+      ]
     },
     {
-      "id": "a1b2c3d4-0021-4000-8000-000000000021",
-      "name": "Slack — Write Failed",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [3800, 500],
       "parameters": {
         "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: 'LokisWand: Airtable write failed for ' + $('Parse Synthesis Output').first().json.company + ' — ' + $('Parse Synthesis Output').first().json.role_title + '.\\nRecommendation: ' + $('Parse Synthesis Output').first().json.recommendation + '\\n\\nSave this manually.\\n\\nFit signals:\\n' + $('Parse Synthesis Output').first().json.fitSignals + '\\n\\nRisk signals:\\n' + $('Parse Synthesis Output').first().json.riskSignals }) }}",
         "options": {}
-      }
-    },
-    {
-      "id": "a1b2c3d4-0022-4000-8000-000000000022",
-      "name": "Slack — Pipeline Complete",
+      },
+      "id": "9dbe72f1-5bcc-46a1-96c6-fc7d6534a334",
+      "name": "Slack — Write Failed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3800, 300],
+      "position": [
+        2096,
+        288
+      ]
+    },
+    {
       "parameters": {
         "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: 'LokisWand: Application logged.\\nCompany: ' + $('Parse Synthesis Output').first().json.company + '\\nRole: ' + $('Parse Synthesis Output').first().json.role_title + '\\nRecommendation: ' + $('Parse Synthesis Output').first().json.recommendation }) }}",
         "options": {}
-      }
+      },
+      "id": "94be142b-e281-4d0f-9ab1-78d43f9a61ec",
+      "name": "Slack — Pipeline Complete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2096,
+        96
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        336,
+        96
+      ],
+      "id": "b0f5fd71-28f2-4d64-9dca-6d943e5148ba",
+      "name": "Merge"
     }
   ],
+  "pinData": {},
   "connections": {
     "Job Description Form": {
-      "main": [[{ "node": "Extract Metadata", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Extract Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Metadata": {
-      "main": [[{ "node": "Parse Metadata JSON", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Metadata JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Metadata JSON": {
-      "main": [[{ "node": "Metadata Valid?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Metadata Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Metadata Valid?": {
       "main": [
-        [{ "node": "Slack — Metadata Error", "type": "main", "index": 0 }],
-        [{ "node": "Check for Duplicate", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Slack — Metadata Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check for Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Check for Duplicate": {
-      "main": [[{ "node": "Process Duplicate Check", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Process Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Process Duplicate Check": {
-      "main": [[{ "node": "Duplicate Found?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Duplicate Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Duplicate Found?": {
       "main": [
-        [{ "node": "Slack — Duplicate Detected", "type": "main", "index": 0 }],
-        [{ "node": "Load Profile Document", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Slack — Duplicate Detected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load Profile Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Load Profile Document": {
-      "main": [[
-        { "node": "Instance A — Fit Signals", "type": "main", "index": 0 },
-        { "node": "Instance B — Risk Signals", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Instance A — Fit Signals",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instance B — Risk Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Instance A — Fit Signals": {
-      "main": [[{ "node": "Merge Assessments", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Instance B — Risk Signals": {
-      "main": [[{ "node": "Merge Assessments", "type": "main", "index": 1 }]]
-    },
-    "Merge Assessments": {
-      "main": [[{ "node": "Combine for Synthesis", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
     },
     "Combine for Synthesis": {
-      "main": [[{ "node": "Assessment Error?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Assessment Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Assessment Error?": {
       "main": [
-        [{ "node": "Slack — Assessment Error", "type": "main", "index": 0 }],
-        [{ "node": "Run Synthesis", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Slack — Assessment Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Run Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Run Synthesis": {
-      "main": [[{ "node": "Parse Synthesis Output", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Synthesis Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Synthesis Output": {
-      "main": [[{ "node": "Synthesis Error?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Synthesis Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Synthesis Error?": {
       "main": [
-        [{ "node": "Log Partial to Airtable", "type": "main", "index": 0 }],
-        [{ "node": "Write to Airtable", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Log Partial to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Log Partial to Airtable": {
-      "main": [[{ "node": "Slack — Synthesis Error", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Slack — Synthesis Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Write to Airtable": {
-      "main": [[{ "node": "Airtable Write Failed?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Airtable Write Failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Airtable Write Failed?": {
       "main": [
-        [{ "node": "Slack — Write Failed", "type": "main", "index": 0 }],
-        [{ "node": "Slack — Pipeline Complete", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Slack — Write Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack — Pipeline Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Combine for Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
-  "pinData": {},
-  "settings": { "executionOrder": "v1" },
-  "staticData": null,
-  "meta": { "templateCredsSetupCompleted": false },
-  "id": "lokiswand-core-pipeline-v1",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "952c084a-c342-4937-9cb8-4d50ed087048",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "df67822ba4756e22c5e98cec7c19e5ceeedbb3bfddc2863ea11fa7ba186c4883"
+  },
+  "id": "1XZd6yOwMvGt4ZKD",
   "tags": []
 }

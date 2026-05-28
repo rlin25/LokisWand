@@ -2,11 +2,6 @@
   "name": "LokisWand — Follow-up Nudge",
   "nodes": [
     {
-      "id": "b2c3d4e5-0001-4000-8000-000000000001",
-      "name": "Daily Schedule",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [60, 300],
       "parameters": {
         "rule": {
           "interval": [
@@ -16,231 +11,393 @@
             }
           ]
         }
-      }
+      },
+      "id": "ac3b6865-c703-43f2-8a9c-1694c887e5af",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -656,
+        208
+      ]
     },
     {
-      "id": "b2c3d4e5-0002-4000-8000-000000000002",
-      "name": "Query Day 7 Records",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [280, 180],
       "parameters": {
         "operation": "search",
-        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
-        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
+        "base": {
+          "value": "applZgAP2KgAezIIr",
+          "mode": "id"
+        },
+        "table": {
+          "value": "tblQwqOlS9E9nFZU6",
+          "mode": "id"
+        },
         "filterByFormula": "AND({Status}='Applied', NOT({Follow-up sent day 7}), DATETIME_DIFF(TODAY(), {Date submitted}, 'days') >= 7, DATETIME_DIFF(TODAY(), {Date submitted}, 'days') < 21)",
         "options": {}
       },
+      "id": "b6990236-25db-4e17-96be-956415561857",
+      "name": "Query Day 7 Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        80
+      ],
       "credentials": {
         "airtableTokenApi": {
-          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
-          "name": "Airtable Token"
+          "id": "9QQKiKufVltzWDO5",
+          "name": "Airtable Personal Access Token account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "b2c3d4e5-0003-4000-8000-000000000003",
-      "name": "Day 7 Records Found?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [500, 180],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "cond-day7-found",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "notEmpty" }
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
             }
           ],
           "combinator": "and"
-        }
-      }
-    },
-    {
-      "id": "b2c3d4e5-0004-4000-8000-000000000004",
-      "name": "Slack — Day 7 Nudge",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [720, 100],
-      "parameters": {
-        "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: 'Follow-up Reminder\\nCompany: ' + $json.fields.Company + '\\nRole: ' + $json.fields['Role title'] + '\\nApplied: ' + $json.fields['Date submitted'] + '\\nDay 7 follow-up due — have you heard back?' }) }}",
+        },
         "options": {}
       },
-      "continueOnFail": true
+      "id": "5fb37908-895c-44da-ab6d-c828597269d4",
+      "name": "Day 7 Records Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        80
+      ]
     },
     {
-      "id": "b2c3d4e5-0005-4000-8000-000000000005",
-      "name": "Update Day 7 Checkbox",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [940, 100],
-      "parameters": {
-        "operation": "update",
-        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
-        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
-        "id": "={{ $json.id }}",
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Follow-up sent day 7": true
-          }
-        }
-      },
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
-          "name": "Airtable Token"
-        }
-      },
-      "continueOnFail": true
-    },
-    {
-      "id": "b2c3d4e5-0006-4000-8000-000000000006",
-      "name": "Query Day 14 Records",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [280, 420],
       "parameters": {
         "operation": "search",
-        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
-        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
+        "base": {
+          "value": "applZgAP2KgAezIIr",
+          "mode": "id"
+        },
+        "table": {
+          "value": "tblQwqOlS9E9nFZU6",
+          "mode": "id"
+        },
         "filterByFormula": "AND({Status}='Applied', NOT({Follow-up sent day 14}), DATETIME_DIFF(TODAY(), {Date submitted}, 'days') >= 14, DATETIME_DIFF(TODAY(), {Date submitted}, 'days') < 21)",
         "options": {}
       },
+      "id": "1d2ddba0-b82a-42f6-a079-2e171db24f96",
+      "name": "Query Day 14 Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        320
+      ],
       "credentials": {
         "airtableTokenApi": {
-          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
-          "name": "Airtable Token"
+          "id": "9QQKiKufVltzWDO5",
+          "name": "Airtable Personal Access Token account"
         }
       },
       "continueOnFail": true
     },
     {
-      "id": "b2c3d4e5-0007-4000-8000-000000000007",
-      "name": "Day 14 Records Found?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [500, 420],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "cond-day14-found",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "notEmpty" }
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
             }
           ],
           "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "39dc8867-cb03-4cf9-b4a7-1a7fdece6587",
+      "name": "Day 14 Records Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of $input.all()) {\n  const record = item.json;\n  const text = `Follow-up Reminder\\nCompany:\n${record.Company}\\nRole: ${record['Role title']}\\nApplied:\n${record['Date submitted']}\\nDay 7 follow-up due - have you\nheard back?`;\n  results.push({ json: { ...record, slackBody:\nJSON.stringify({ text }) } });\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        80
+      ],
+      "id": "8d97b7d3-114e-4780-9662-b45c4e26cf0c",
+      "name": "Prepare Day 7 Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of $input.all()) {\n  const record = item.json;\n  const text = `Follow-up Reminder\\nCompany:\n${record.Company}\\nRole: ${record['Role title']}\\nApplied:\n${record['Date submitted']}\\nDay 14 follow-up due - have you\nheard back?`;\n  results.push({ json: { ...record, slackBody:\nJSON.stringify({ text }) } });\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        320
+      ],
+      "id": "e893b4f9-36cf-4f22-9e24-e5795709469d",
+      "name": "Prepare Day 14 Message"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/applZgAP2KgAezIIr/tblQwqOlS9E9nFZU6",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "airtableTokenApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ records: [{ id: $('Prepare Day 14 Message').item.json.id, fields: { 'Follow-up sent day 14': true } }] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        432,
+        256
+      ],
+      "id": "867ce3a3-b7ab-4cf7-a241-66c07bd05e81",
+      "name": "Update Day 14 Checkbox",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "9QQKiKufVltzWDO5",
+          "name": "Airtable Personal Access Token account"
         }
       }
     },
     {
-      "id": "b2c3d4e5-0008-4000-8000-000000000008",
-      "name": "Slack — Day 14 Nudge",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [720, 360],
       "parameters": {
         "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
+        "contentType": "=json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: 'Follow-up Reminder\\nCompany: ' + $json.fields.Company + '\\nRole: ' + $json.fields['Role title'] + '\\nApplied: ' + $json.fields['Date submitted'] + '\\nDay 14 follow-up due — have you heard back?' }) }}",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "={{ $json.slackBody }}",
         "options": {}
       },
+      "id": "aa894860-b00b-4b82-8d9e-7150ded25505",
+      "name": "Slack - Day 14 Nudge",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        256
+      ],
       "continueOnFail": true
     },
     {
-      "id": "b2c3d4e5-0009-4000-8000-000000000009",
-      "name": "Update Day 14 Checkbox",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2,
-      "position": [940, 360],
       "parameters": {
-        "operation": "update",
-        "base": { "value": "applZgAP2KgAezIIr", "mode": "id" },
-        "table": { "value": "tblQwqOlS9E9nFZU6", "mode": "id" },
-        "id": "={{ $json.id }}",
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Follow-up sent day 14": true
-          }
-        }
+        "method": "POST",
+        "url": "={{ $vars.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "=json",
+        "specifyBody": "json",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "={{ $json.slackBody }}",
+        "options": {}
       },
+      "id": "0046567f-75ce-487e-be80-72b109d4ba9e",
+      "name": "Slack - Day 7 Nudge",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        16
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/applZgAP2KgAezIIr/tblQwqOlS9E9nFZU6",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "airtableTokenApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ records: [{ id: $('Prepare Day 7 Message').item.json.id, fields: { 'Follow-up sent day 7': true } }] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        432,
+        16
+      ],
+      "id": "a386c5eb-096e-49b1-b17e-2dd3da68c6fc",
+      "name": "Update Day 7 Checkbox",
       "credentials": {
         "airtableTokenApi": {
-          "id": "SELECT_YOUR_AIRTABLE_CREDENTIAL",
-          "name": "Airtable Token"
+          "id": "9QQKiKufVltzWDO5",
+          "name": "Airtable Personal Access Token account"
         }
-      },
-      "continueOnFail": true
-    },
-    {
-      "id": "b2c3d4e5-0010-4000-8000-000000000010",
-      "name": "Slack — Workflow Error",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1160, 240],
-      "parameters": {
-        "method": "POST",
-        "url": "PASTE_SLACK_WEBHOOK_URL_HERE",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: 'LokisWand follow-up nudge workflow encountered an error during today run. Records may not have been updated. The workflow will retry tomorrow.' }) }}",
-        "options": {}
       }
     }
   ],
+  "pinData": {},
   "connections": {
     "Daily Schedule": {
-      "main": [[
-        { "node": "Query Day 7 Records", "type": "main", "index": 0 },
-        { "node": "Query Day 14 Records", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Query Day 7 Records",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Query Day 14 Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Query Day 7 Records": {
-      "main": [[{ "node": "Day 7 Records Found?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Day 7 Records Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Day 7 Records Found?": {
       "main": [
-        [{ "node": "Slack — Day 7 Nudge", "type": "main", "index": 0 }],
-        []
+        [
+          {
+            "node": "Prepare Day 7 Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Slack — Day 7 Nudge": {
-      "main": [[{ "node": "Update Day 7 Checkbox", "type": "main", "index": 0 }]]
-    },
     "Query Day 14 Records": {
-      "main": [[{ "node": "Day 14 Records Found?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Day 14 Records Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Day 14 Records Found?": {
       "main": [
-        [{ "node": "Slack — Day 14 Nudge", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "Prepare Day 14 Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Day 7 Message": {
+      "main": [
+        [
+          {
+            "node": "Slack - Day 7 Nudge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Day 14 Message": {
+      "main": [
+        [
+          {
+            "node": "Slack - Day 14 Nudge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Day 14 Checkbox": {
+      "main": [
         []
       ]
     },
-    "Slack — Day 14 Nudge": {
-      "main": [[{ "node": "Update Day 14 Checkbox", "type": "main", "index": 0 }]]
+    "Slack - Day 14 Nudge": {
+      "main": [
+        [
+          {
+            "node": "Update Day 14 Checkbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Day 7 Nudge": {
+      "main": [
+        [
+          {
+            "node": "Update Day 7 Checkbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "pinData": {},
+  "active": true,
   "settings": {
     "executionOrder": "v1",
-    "errorWorkflow": ""
+    "binaryMode": "separate"
   },
-  "staticData": null,
-  "meta": { "templateCredsSetupCompleted": false },
-  "id": "lokiswand-followup-nudge-v1",
+  "versionId": "6a863ecb-ea83-4f0c-9d22-9f14ff0b10af",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "df67822ba4756e22c5e98cec7c19e5ceeedbb3bfddc2863ea11fa7ba186c4883"
+  },
+  "id": "2wsQdUKnAQPyzUrK",
   "tags": []
 }
