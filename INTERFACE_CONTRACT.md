@@ -34,6 +34,8 @@ Convert a candidate's master resume into a structured profile document for use a
 4. User reviews the Review Required section, corrects any inaccuracies, and saves the document as a markdown file
 5. The saved profile document is uploaded to n8n as a static reference file
 
+[Updated post-implementation: Step 5 was not implemented as specified. In v1, the profile document text is embedded as a hardcoded string in a Code node (Load Profile Document) in the core pipeline workflow. The n8n static file reference approach was set aside due to configuration complexity discovered during implementation. The v2 remediation is to externalize the profile. See Decision 17.]
+
 ### Output
 | Field | Format | Destination |
 |---|---|---|
@@ -266,7 +268,7 @@ Day [7 or 14] follow-up due — have you heard back?
 
 | Failure point | Behavior |
 |---|---|
-| Metadata extraction returns null for company and role title | Log error to Airtable, Slack notification to user, halt |
+| Metadata extraction returns null for company and role title | Log error to Airtable, Slack notification to user, halt — *[Updated post-implementation: Airtable logging not implemented for this failure; no record exists at this pipeline stage. Slack notification and halt only. See docs/loki_v1_interface_contract.md for full correction note.]* |
 | Instance A or B fails | Log error to Airtable, Slack notification, halt before synthesis |
 | Synthesis fails | Log partial results to Airtable, Slack notification, halt |
 | Airtable write fails | Slack notification with raw output, user saves manually |
